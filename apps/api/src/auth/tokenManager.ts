@@ -12,50 +12,147 @@ interface StoredTokens {
   expiresAt: number;
 }
 
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
 /**
- * Server-side Service App token manager.
- * Uses OAuth refresh_token grant; never exposes tokens to the browser.
+ * Server-side Service App token lifecycle:
+ * 1) Mint access+refresh via POST /v1/applications/{appId}/token
+ * 2) Persist tokens locally
+ * 3) Refresh with OAuth refresh_token grant
+ * 4) Re-mint if refresh fails (e.g. revoked / expired refresh)
+ *
+ * Never exposes tokens to the browser.
  */
 export class TokenManager {
   private accessToken: string;
   private refreshToken: string;
   private expiresAt: number;
-  private refreshPromise: Promise<string> | null = null;
+  private inflight: Promise<string> | null = null;
 
   constructor() {
     const stored = this.readStore();
     this.accessToken = stored?.accessToken || config.webex.accessToken;
     this.refreshToken = stored?.refreshToken || config.webex.refreshToken;
-    // Unknown expiry from portal copy — refresh proactively after 12h or on 401
-    this.expiresAt = stored?.expiresAt || Date.now() + 12 * 60 * 60 * 1000;
+    this.expiresAt = stored?.expiresAt || 0;
   }
 
   get ready(): boolean {
-    return Boolean(this.accessToken || this.refreshToken);
+    return Boolean(
+      this.accessToken ||
+        this.refreshToken ||
+        (config.webex.appId &&
+          config.webex.clientId &&
+          config.webex.clientSecret &&
+          config.webex.orgId &&
+          config.webex.applicationsToken),
+    );
   }
 
+  /** Ensure a usable access token exists (mint and/or refresh as needed). */
   async getAccessToken(): Promise<string> {
-    if (!this.ready) {
-      throw new Error("No Webex tokens configured");
-    }
+    if (this.inflight) return this.inflight;
+    this.inflight = this.resolveAccessToken().finally(() => {
+      this.inflight = null;
+    });
+    return this.inflight;
+  }
+
+  /** Force refresh; on failure, re-mint from the Applications Token API. */
+  async refresh(): Promise<string> {
+    if (this.inflight) return this.inflight;
+    this.inflight = this.forceRenew().finally(() => {
+      this.inflight = null;
+    });
+    return this.inflight;
+  }
+
+  private async resolveAccessToken(): Promise<string> {
     const skewMs = 5 * 60 * 1000;
-    if (this.accessToken && Date.now() < this.expiresAt - skewMs) {
+    if (this.accessToken && this.expiresAt && Date.now() < this.expiresAt - skewMs) {
       return this.accessToken;
     }
-    return this.refresh();
+    if (this.refreshToken) {
+      try {
+        return await this.doRefresh();
+      } catch (err) {
+        console.warn(
+          "[token] Refresh failed, attempting re-mint:",
+          (err as Error).message,
+        );
+      }
+    }
+    return this.mintFromServiceApp();
   }
 
-  async refresh(): Promise<string> {
-    if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = this.doRefresh().finally(() => {
-      this.refreshPromise = null;
+  private async forceRenew(): Promise<string> {
+    if (this.refreshToken) {
+      try {
+        return await this.doRefresh();
+      } catch (err) {
+        console.warn(
+          "[token] Forced refresh failed, attempting re-mint:",
+          (err as Error).message,
+        );
+      }
+    }
+    return this.mintFromServiceApp();
+  }
+
+  /**
+   * POST https://webexapis.com/v1/applications/{appId}/token
+   * Auth: Personal Access Token or integration token with spark:applications_token
+   * Body: clientId, clientSecret, targetOrgId
+   */
+  private async mintFromServiceApp(): Promise<string> {
+    const { appId, clientId, clientSecret, orgId, applicationsToken, applicationsTokenUrl } =
+      config.webex;
+
+    if (!appId || !clientId || !clientSecret || !orgId) {
+      throw new Error(
+        "Cannot mint Service App tokens: need WEBEX_APP_ID, WEBEX_CLIENT_ID, WEBEX_CLIENT_SECRET, WEBEX_ORG_ID",
+      );
+    }
+    if (!applicationsToken) {
+      throw new Error(
+        "Cannot mint Service App tokens: set WEBEX_APPLICATIONS_TOKEN to a Personal Access Token (or an integration token with spark:applications_token). Used only to call /applications/{appId}/token — Search uses the minted Service App tokens afterward.",
+      );
+    }
+
+    const url = `${applicationsTokenUrl}/${encodeURIComponent(appId)}/token`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${applicationsToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        clientId,
+        clientSecret,
+        targetOrgId: orgId,
+      }),
     });
-    return this.refreshPromise;
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(
+        `Service App token mint failed (${res.status}): ${text.slice(0, 300)}`,
+      );
+    }
+
+    const data = (await res.json()) as TokenResponse;
+    this.applyTokenResponse(data);
+    console.log("[token] Minted Service App access/refresh tokens");
+    return this.accessToken;
   }
 
   private async doRefresh(): Promise<string> {
     if (!this.refreshToken) {
-      throw new Error("WEBEX_REFRESH_TOKEN is required to refresh access tokens");
+      throw new Error("No refresh token available");
     }
     if (!config.webex.clientId || !config.webex.clientSecret) {
       throw new Error("WEBEX_CLIENT_ID and WEBEX_CLIENT_SECRET are required");
@@ -79,18 +176,21 @@ export class TokenManager {
       throw new Error(`Token refresh failed (${res.status}): ${text.slice(0, 200)}`);
     }
 
-    const data = (await res.json()) as {
-      access_token: string;
-      refresh_token?: string;
-      expires_in?: number;
-    };
+    const data = (await res.json()) as TokenResponse;
+    this.applyTokenResponse(data);
+    console.log("[token] Refreshed Service App access token");
+    return this.accessToken;
+  }
 
+  private applyTokenResponse(data: TokenResponse): void {
+    if (!data.access_token) {
+      throw new Error("Token response missing access_token");
+    }
     this.accessToken = data.access_token;
     if (data.refresh_token) this.refreshToken = data.refresh_token;
     const expiresInSec = data.expires_in ?? 14 * 24 * 60 * 60;
     this.expiresAt = Date.now() + expiresInSec * 1000;
     this.writeStore();
-    return this.accessToken;
   }
 
   private readStore(): StoredTokens | null {

@@ -27,11 +27,21 @@ export const config = {
   webex: {
     clientId: process.env.WEBEX_CLIENT_ID || "",
     clientSecret: process.env.WEBEX_CLIENT_SECRET || "",
+    /** Service App application ID (from developer portal). */
+    appId: process.env.WEBEX_APP_ID || "",
+    orgId: process.env.WEBEX_ORG_ID || "",
+    /**
+     * Bearer used only to call POST /v1/applications/{appId}/token.
+     * Personal Access Token, or access token from an integration with
+     * spark:applications_token. Not used for Search API calls.
+     */
+    applicationsToken: process.env.WEBEX_APPLICATIONS_TOKEN || "",
+    /** Optional legacy overrides if tokens were copied from the portal. */
     accessToken: process.env.WEBEX_ACCESS_TOKEN || "",
     refreshToken: process.env.WEBEX_REFRESH_TOKEN || "",
-    orgId: process.env.WEBEX_ORG_ID || "",
     apiBase: (process.env.WXCC_API_BASE || "").replace(/\/$/, ""),
     tokenUrl: "https://webexapis.com/v1/access_token",
+    applicationsTokenUrl: "https://webexapis.com/v1/applications",
   },
 };
 
@@ -39,11 +49,18 @@ export function assertLiveConfig(): void {
   const missing: string[] = [];
   if (!config.webex.clientId) missing.push("WEBEX_CLIENT_ID");
   if (!config.webex.clientSecret) missing.push("WEBEX_CLIENT_SECRET");
-  if (!config.webex.accessToken && !config.webex.refreshToken) {
-    missing.push("WEBEX_ACCESS_TOKEN or WEBEX_REFRESH_TOKEN");
-  }
-  if (!config.webex.refreshToken) missing.push("WEBEX_REFRESH_TOKEN");
+  if (!config.webex.appId) missing.push("WEBEX_APP_ID");
+  if (!config.webex.orgId) missing.push("WEBEX_ORG_ID");
   if (!config.webex.apiBase) missing.push("WXCC_API_BASE");
+
+  const canMint = Boolean(config.webex.applicationsToken);
+  const hasLegacyTokens = Boolean(
+    config.webex.refreshToken || config.webex.accessToken,
+  );
+  if (!canMint && !hasLegacyTokens) {
+    missing.push("WEBEX_APPLICATIONS_TOKEN");
+  }
+
   if (missing.length) {
     throw new Error(
       `MOCK_DATA=false but missing required env: ${missing.join(", ")}`,
