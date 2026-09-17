@@ -29,10 +29,11 @@ For live data, set `MOCK_DATA=false` and fill Service App env vars in `.env` (se
 
 ## Deploy overview
 
-1. Push this repo to **GitHub**
+1. Clone from **GitHub**
 2. Host the app (Docker / Node) anywhere with HTTPS + env vars
-3. Create & authorize a Webex Contact Center **Service App**
-4. Paste client id/secret + access/refresh tokens into host env
+3. Create & authorize a Webex Contact Center **Service App** (`cjp:config_read`)
+4. Provide **Client ID**, **Client Secret**, **App ID**, **Org ID**, plus `WEBEX_APPLICATIONS_TOKEN` (PAT used only to mint Service App tokens)
+5. The wallboard mints, stores, and refreshes tokens automatically
 
 Full steps: [docs/deploy.md](docs/deploy.md)
 
@@ -40,7 +41,7 @@ Full steps: [docs/deploy.md](docs/deploy.md)
 
 ```
 TV browser  →  React SPA  →  GET /api/snapshot  →  Node API
-                                                   ├─ TokenManager (refresh grant)
+                                                   ├─ TokenManager (mint + refresh)
                                                    └─ WxCC GraphQL Search
 ```
 
