@@ -33,13 +33,23 @@ function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: strin
   const health = snapshot.stale ? "stale" : "live";
   return (
     <header className="header">
-      <div>
-        <h1>{snapshot.title}</h1>
-        <p className="meta">
-          Updated {updated}
-          {snapshot.mock ? " · MOCK" : ""}
-          {snapshot.error ? ` · ${snapshot.error}` : ""}
-        </p>
+      <div className="header-brand">
+        {snapshot.logoUrl ? (
+          <img
+            className="header-logo"
+            src={snapshot.logoUrl}
+            alt=""
+            aria-hidden="true"
+          />
+        ) : null}
+        <div>
+          <h1>{snapshot.title}</h1>
+          <p className="meta">
+            Updated {updated}
+            {snapshot.mock ? " · MOCK" : ""}
+            {snapshot.error ? ` · ${snapshot.error}` : ""}
+          </p>
+        </div>
       </div>
       <div className="header-right">
         <span className={`badge ${health}`}>{snapshot.stale ? "STALE" : "LIVE"}</span>

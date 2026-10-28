@@ -38,6 +38,7 @@ Copy `.env.example` to `.env` (local) or set the same variables in your host’s
 | `WXCC_API_BASE` | live | Regional base, e.g. `https://api.wxcc-eu1.cisco.com` (UK), `https://api.wxcc-eu2.cisco.com` (Germany), `https://api.wxcc-us1.cisco.com` (US) |
 | `MOCK_DATA` | | `false` in production |
 | `WALLBOARD_TITLE` | | Display title |
+| `WALLBOARD_LOGO_URL` | | Header logo URL (defaults to Node4 icon) |
 | `SNAPSHOT_INTERVAL_MS` | | Default `30000` |
 | `ORG_TIMEZONE` | | IANA tz for start-of-day window (default `UTC`) |
 | `DISPLAY_KEY` | optional | If set, require `?key=` or `X-Display-Key` on `/api/snapshot` |

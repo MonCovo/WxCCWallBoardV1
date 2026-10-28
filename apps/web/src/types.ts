@@ -53,6 +53,7 @@ export interface ChannelMixItem {
 
 export interface WallboardSnapshot {
   title: string;
+  logoUrl: string;
   generatedAt: string;
   stale: boolean;
   error?: string;

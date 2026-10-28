@@ -59,6 +59,20 @@ body {
   gap: 1rem;
 }
 
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.header-logo {
+  height: clamp(2.4rem, 4.2vw, 3.4rem);
+  width: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .header h1 {
   margin: 0;
   font-size: clamp(1.6rem, 2.4vw, 2.4rem);

@@ -21,6 +21,9 @@ export const config = {
   port: int(process.env.PORT, 3001),
   mockData: bool(process.env.MOCK_DATA, true),
   wallboardTitle: process.env.WALLBOARD_TITLE || "Contact Center Wallboard",
+  wallboardLogoUrl:
+    (process.env.WALLBOARD_LOGO_URL ||
+      "https://www.n4cdn.com/node4-logos-2024/Node4-Icon-full-colour-Large.png").trim(),
   snapshotIntervalMs: int(process.env.SNAPSHOT_INTERVAL_MS, 30_000),
   displayKey: process.env.DISPLAY_KEY?.trim() || "",
   orgTimezone: process.env.ORG_TIMEZONE || "UTC",

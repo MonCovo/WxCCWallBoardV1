@@ -8,6 +8,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
 
   return {
     title: config.wallboardTitle,
+    logoUrl: config.wallboardLogoUrl,
     generatedAt: new Date().toISOString(),
     stale: false,
     mock: true,

@@ -335,6 +335,7 @@ export async function fetchLiveSnapshot(
 
   return {
     title: config.wallboardTitle,
+    logoUrl: config.wallboardLogoUrl,
     generatedAt: new Date().toISOString(),
     kpis: parseKpis(flattenTaskAggs(kpiData.taskDetails?.tasks, () => undefined)),
     queues: parseQueues(
