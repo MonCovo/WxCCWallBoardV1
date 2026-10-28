@@ -35,7 +35,7 @@ Copy `.env.example` to `.env` (local) or set the same variables in your host’s
 | `WEBEX_APP_ID` | live | Service App / application ID |
 | `WEBEX_ORG_ID` | live | Target org ID (`targetOrgId` for token mint) |
 | `WEBEX_APPLICATIONS_TOKEN` | live* | See below |
-| `WXCC_API_BASE` | live | Regional base, e.g. `https://api.wxcc-eu1.webex.com` |
+| `WXCC_API_BASE` | live | Regional base, e.g. `https://api.wxcc-eu1.cisco.com` (UK), `https://api.wxcc-eu2.cisco.com` (Germany), `https://api.wxcc-us1.cisco.com` (US) |
 | `MOCK_DATA` | | `false` in production |
 | `WALLBOARD_TITLE` | | Display title |
 | `SNAPSHOT_INTERVAL_MS` | | Default `30000` |
