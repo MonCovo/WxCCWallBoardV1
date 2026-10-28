@@ -18,12 +18,32 @@ export interface QueueRow {
   serviceLevelPct: number;
 }
 
+export type AgentAvailability =
+  | "available"
+  | "engaged"
+  | "unavailable"
+  | "wrapUp"
+  | "loggedOut";
+
 export interface AgentStateCounts {
   available: number;
   engaged: number;
   unavailable: number;
   wrapUp: number;
   loggedOut: number;
+}
+
+export interface AgentChannelStatus {
+  channel: ChannelType;
+  status: AgentAvailability;
+  label: string;
+}
+
+export interface AgentRow {
+  id: string;
+  name: string;
+  status: AgentAvailability;
+  channels: AgentChannelStatus[];
 }
 
 export interface ChannelMixItem {
@@ -40,6 +60,7 @@ export interface WallboardSnapshot {
   kpis: Kpis;
   queues: QueueRow[];
   agentStates: AgentStateCounts;
+  agents: AgentRow[];
   channels: ChannelMixItem[];
 }
 

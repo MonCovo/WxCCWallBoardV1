@@ -86,24 +86,35 @@ export function queueStatsQuery(from: number, to: number): string {
 }`;
 }
 
-export function agentStateQuery(from: number, to: number): string {
+export function agentStateQuery(
+  from: number,
+  to: number,
+  cursor?: string,
+): string {
+  const pagination = cursor
+    ? `pagination: { cursor: ${JSON.stringify(cursor)} }`
+    : "";
+  // Raw ASR rows (page size 250). Group-by aggregations over channelInfo
+  // count channels, not people — a blended agent is many channel records.
   return `{
   agentSession(
     from: ${from}
     to: ${to}
     filter: { isActive: { equals: true } }
-    aggregations: [
-      { field: "id", type: count, name: "byState" }
-    ]
+    ${pagination}
   ) {
     agentSessions {
+      agentId
+      agentName
       channelInfo {
         currentState
+        channelType
+        idleCodeName
       }
-      aggregation {
-        name
-        value
-      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
     }
   }
 }`;

@@ -53,11 +53,49 @@ export function buildMockSnapshot(): WallboardSnapshot {
         serviceLevelPct: wobble(74, 5),
       },
     ],
+    agents: [
+      {
+        id: "mock-alex",
+        name: "Alex Rivera",
+        status: "engaged",
+        channels: [
+          { channel: "telephony", status: "engaged", label: "Connected" },
+          { channel: "chat", status: "available", label: "Available" },
+        ],
+      },
+      {
+        id: "mock-jordan",
+        name: "Jordan Lee",
+        status: "available",
+        channels: [
+          { channel: "telephony", status: "available", label: "Available" },
+          { channel: "email", status: "available", label: "Available" },
+        ],
+      },
+      {
+        id: "mock-sam",
+        name: "Sam Patel",
+        status: "wrapUp",
+        channels: [
+          { channel: "telephony", status: "wrapUp", label: "Wrap-up" },
+          { channel: "chat", status: "available", label: "Available" },
+        ],
+      },
+      {
+        id: "mock-riley",
+        name: "Riley Chen",
+        status: "unavailable",
+        channels: [
+          { channel: "telephony", status: "unavailable", label: "Break" },
+          { channel: "social", status: "unavailable", label: "Break" },
+        ],
+      },
+    ],
     agentStates: {
-      available: Math.max(0, wobble(8, 2)),
-      engaged: Math.max(0, wobble(14, 3)),
-      unavailable: Math.max(0, wobble(3, 1)),
-      wrapUp: Math.max(0, wobble(2, 1)),
+      available: 1,
+      engaged: 1,
+      unavailable: 1,
+      wrapUp: 1,
       loggedOut: Math.max(0, wobble(5, 2)),
     },
     channels: [
