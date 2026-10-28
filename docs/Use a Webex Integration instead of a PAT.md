@@ -1,19 +1,3 @@
----
-name: Integration minting steps
-overview: Identify the operator steps to mint Service App tokens with a dedicated Webex Integration (`spark:applications_token`) instead of a 12-hour Personal Access Token, and note what the current wallboard already supports versus a later docs/code follow-up.
-todos:
-  - id: confirm-steps
-    content: Confirm the Integration (not PAT) operator steps and the two-app credential split
-    status: pending
-  - id: later-docs
-    content: After confirmation, fold these steps into README + user guide as PAT vs Integration tracks
-    status: pending
-  - id: optional-tier3
-    content: "Optional later: auto-refresh WEBEX_APPLICATIONS_TOKEN from Integration client id/secret/refresh token"
-    status: pending
-isProject: false
----
-
 # Use a Webex Integration instead of a PAT
 
 Webex requires a Bearer with scope `spark:applications_token` to call `POST /v1/applications/{appId}/token`. That Bearer is **not** the Service App. It is a second app: either a developer portal PAT (12 hours, no refresh, not for production) or a separate **Integration**.
