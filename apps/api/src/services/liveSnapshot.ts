@@ -45,6 +45,7 @@ interface ChannelInfo {
 interface AgentNode {
   agentId?: string;
   agentName?: string;
+  teamName?: string;
   channelInfo?: ChannelInfo | ChannelInfo[];
 }
 
@@ -168,23 +169,32 @@ function emptyAgentCounts(): AgentStateCounts {
   };
 }
 
+const UNASSIGNED_TEAM = "Unassigned";
+
 function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
   const byId = new Map<
     string,
-    { name: string; channels: Map<ChannelType, AgentChannelStatus> }
+    { name: string; team: string; channels: Map<ChannelType, AgentChannelStatus> }
   >();
 
   (sessions ?? []).forEach((session, index) => {
     const id = session.agentId || `__row_${index}`;
+    const team = session.teamName?.trim() || UNASSIGNED_TEAM;
     let row = byId.get(id);
     if (!row) {
       row = {
         name: session.agentName?.trim() || "Unknown agent",
+        team,
         channels: new Map(),
       };
       byId.set(id, row);
-    } else if (session.agentName?.trim() && row.name === "Unknown agent") {
-      row.name = session.agentName.trim();
+    } else {
+      if (session.agentName?.trim() && row.name === "Unknown agent") {
+        row.name = session.agentName.trim();
+      }
+      if (row.team === UNASSIGNED_TEAM && team !== UNASSIGNED_TEAM) {
+        row.team = team;
+      }
     }
 
     for (const channel of channelsOf(session)) {
@@ -211,6 +221,7 @@ function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
       return {
         id,
         name: row.name,
+        team: row.team,
         status: primaryState(channels.map((c) => c.status)),
         channels,
       };

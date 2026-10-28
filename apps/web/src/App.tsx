@@ -1,7 +1,9 @@
-import { formatDuration, useClock, useSnapshot } from "./hooks";
+import { formatDuration, useClock, useFilterSelection, useSnapshot } from "./hooks";
+import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
 import type {
   AgentAvailability,
   AgentRow,
+  AgentStateCounts,
   ChannelType,
   QueueRow,
   WallboardSnapshot,
@@ -85,10 +87,41 @@ function KpiGrid({ snapshot }: { snapshot: WallboardSnapshot }) {
   );
 }
 
-function QueueTable({ queues }: { queues: QueueRow[] }) {
+function countAgentStates(agents: AgentRow[]): AgentStateCounts {
+  const counts: AgentStateCounts = {
+    available: 0,
+    engaged: 0,
+    unavailable: 0,
+    wrapUp: 0,
+    loggedOut: 0,
+  };
+  for (const agent of agents) counts[agent.status] += 1;
+  return counts;
+}
+
+function QueueTable({
+  queues,
+  selected,
+  onChange,
+}: {
+  queues: QueueRow[];
+  selected: ReturnType<typeof useFilterSelection>[0];
+  onChange: ReturnType<typeof useFilterSelection>[1];
+}) {
+  const options = queues.map((q) => ({ value: q.id, label: q.name }));
+  const visible = applySelection(queues, selected, (q) => q.id);
   return (
     <section className="panel" aria-label="Queues">
-      <h2>Queues</h2>
+      <div className="panel-head">
+        <h2>Queues</h2>
+        <MultiSelectFilter
+          label="Queues"
+          noun="queues"
+          options={options}
+          selected={selected}
+          onChange={onChange}
+        />
+      </div>
       <table>
         <thead>
           <tr>
@@ -100,14 +133,14 @@ function QueueTable({ queues }: { queues: QueueRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {queues.length === 0 ? (
+          {visible.length === 0 ? (
             <tr>
               <td colSpan={5} className="empty">
-                No queue activity
+                {queues.length === 0 ? "No queue activity" : "No queues selected"}
               </td>
             </tr>
           ) : (
-            queues.map((q) => (
+            visible.map((q) => (
               <tr key={q.id}>
                 <td>{q.name}</td>
                 <td>{channelLabel(q.channel)}</td>
@@ -156,16 +189,25 @@ function availabilityLabel(status: AgentAvailability): string {
   }
 }
 
-function AgentRoster({ agents }: { agents: AgentRow[] }) {
+function AgentRoster({
+  agents,
+  emptyLabel,
+}: {
+  agents: AgentRow[];
+  emptyLabel: string;
+}) {
   if (agents.length === 0) {
-    return <p className="empty-agents">No agents signed in</p>;
+    return <p className="empty-agents">{emptyLabel}</p>;
   }
   return (
     <ul className="agent-roster">
       {agents.map((agent) => (
         <li key={agent.id} className="agent-card">
           <div className="agent-card-head">
-            <span className="agent-name">{agent.name}</span>
+            <div className="agent-identity">
+              <span className="agent-name">{agent.name}</span>
+              <span className="agent-team">{agent.team}</span>
+            </div>
             <span className={`agent-primary ${availabilityTone(agent.status)}`}>
               {availabilityLabel(agent.status)}
             </span>
@@ -192,8 +234,20 @@ function AgentRoster({ agents }: { agents: AgentRow[] }) {
   );
 }
 
-function AgentStates({ snapshot }: { snapshot: WallboardSnapshot }) {
-  const a = snapshot.agentStates;
+function AgentStates({
+  agents,
+  selected,
+  onChange,
+}: {
+  agents: AgentRow[];
+  selected: ReturnType<typeof useFilterSelection>[0];
+  onChange: ReturnType<typeof useFilterSelection>[1];
+}) {
+  const options = [...new Set(agents.map((a) => a.team).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((team) => ({ value: team, label: team }));
+  const visible = applySelection(agents, selected, (a) => a.team);
+  const a = countAgentStates(visible);
   const rows = [
     { label: "Available", value: a.available, tone: "ok" },
     { label: "Engaged", value: a.engaged, tone: "engaged" },
@@ -203,7 +257,16 @@ function AgentStates({ snapshot }: { snapshot: WallboardSnapshot }) {
   ];
   return (
     <section className="panel agent-panel" aria-label="Agent states">
-      <h2>Agents</h2>
+      <div className="panel-head">
+        <h2>Agents</h2>
+        <MultiSelectFilter
+          label="Teams"
+          noun="teams"
+          options={options}
+          selected={selected}
+          onChange={onChange}
+        />
+      </div>
       <div className="agent-grid">
         {rows.map((r) => (
           <div key={r.label} className={`agent-cell ${r.tone}`}>
@@ -212,7 +275,10 @@ function AgentStates({ snapshot }: { snapshot: WallboardSnapshot }) {
           </div>
         ))}
       </div>
-      <AgentRoster agents={snapshot.agents ?? []} />
+      <AgentRoster
+        agents={visible}
+        emptyLabel={agents.length === 0 ? "No agents signed in" : "No agents selected"}
+      />
     </section>
   );
 }
@@ -245,6 +311,8 @@ function ChannelMix({ snapshot }: { snapshot: WallboardSnapshot }) {
 export function App() {
   const { snapshot, error } = useSnapshot(5000);
   const clock = useClock();
+  const [selectedTeams, setSelectedTeams] = useFilterSelection("wallboard.teams");
+  const [selectedQueues, setSelectedQueues] = useFilterSelection("wallboard.queues");
 
   if (!snapshot) {
     return (
@@ -259,9 +327,17 @@ export function App() {
       <Header snapshot={snapshot} clock={clock} />
       <KpiGrid snapshot={snapshot} />
       <div className="main-grid">
-        <QueueTable queues={snapshot.queues} />
+        <QueueTable
+          queues={snapshot.queues}
+          selected={selectedQueues}
+          onChange={setSelectedQueues}
+        />
         <div className="side-stack">
-          <AgentStates snapshot={snapshot} />
+          <AgentStates
+            agents={snapshot.agents ?? []}
+            selected={selectedTeams}
+            onChange={setSelectedTeams}
+          />
           <ChannelMix snapshot={snapshot} />
         </div>
       </div>

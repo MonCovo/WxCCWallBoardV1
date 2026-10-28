@@ -106,6 +106,7 @@ export function agentStateQuery(
     agentSessions {
       agentId
       agentName
+      teamName
       channelInfo {
         currentState
         channelType

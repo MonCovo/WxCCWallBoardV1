@@ -42,6 +42,7 @@ export interface AgentChannelStatus {
 export interface AgentRow {
   id: string;
   name: string;
+  team: string;
   status: AgentAvailability;
   channels: AgentChannelStatus[];
 }

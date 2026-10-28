@@ -58,6 +58,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
       {
         id: "mock-alex",
         name: "Alex Rivera",
+        team: "Sales",
         status: "engaged",
         channels: [
           { channel: "telephony", status: "engaged", label: "Connected" },
@@ -67,6 +68,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
       {
         id: "mock-jordan",
         name: "Jordan Lee",
+        team: "Sales",
         status: "available",
         channels: [
           { channel: "telephony", status: "available", label: "Available" },
@@ -76,6 +78,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
       {
         id: "mock-sam",
         name: "Sam Patel",
+        team: "Support",
         status: "wrapUp",
         channels: [
           { channel: "telephony", status: "wrapUp", label: "Wrap-up" },
@@ -85,19 +88,30 @@ export function buildMockSnapshot(): WallboardSnapshot {
       {
         id: "mock-riley",
         name: "Riley Chen",
+        team: "Operations",
         status: "unavailable",
         channels: [
           { channel: "telephony", status: "unavailable", label: "Break" },
           { channel: "social", status: "unavailable", label: "Break" },
         ],
       },
+      {
+        id: "mock-casey",
+        name: "Casey Nguyen",
+        team: "Support",
+        status: "engaged",
+        channels: [
+          { channel: "chat", status: "engaged", label: "Connected" },
+          { channel: "email", status: "available", label: "Available" },
+        ],
+      },
     ],
     agentStates: {
       available: 1,
-      engaged: 1,
+      engaged: 2,
       unavailable: 1,
       wrapUp: 1,
-      loggedOut: Math.max(0, wobble(5, 2)),
+      loggedOut: 0,
     },
     channels: [
       { channel: "telephony", count: wobble(160, 10) },

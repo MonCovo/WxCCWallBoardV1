@@ -1,6 +1,42 @@
 import { useCallback, useEffect, useState } from "react";
 import type { WallboardSnapshot } from "./types";
 
+/** null means show all items; an array is an explicit multi-select (may be empty). */
+export type FilterSelection = string[] | null;
+
+function readFilterSelection(key: string): FilterSelection {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw || raw === "*") return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    return null;
+  }
+}
+
+export function useFilterSelection(storageKey: string) {
+  const [selected, setSelected] = useState<FilterSelection>(() =>
+    readFilterSelection(storageKey),
+  );
+
+  const update = useCallback(
+    (next: FilterSelection) => {
+      setSelected(next);
+      try {
+        if (next === null) localStorage.setItem(storageKey, "*");
+        else localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        /* private mode / quota — keep in-memory selection */
+      }
+    },
+    [storageKey],
+  );
+
+  return [selected, update] as const;
+}
+
 function displayKeyParam(): string {
   const params = new URLSearchParams(window.location.search);
   const key = params.get("key");
