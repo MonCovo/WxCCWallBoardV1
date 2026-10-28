@@ -1,4 +1,7 @@
-/** Aggregation queries for wallboard KPIs (rolling start-of-day → now). */
+/** Aggregation queries for wallboard KPIs (rolling start-of-day → now).
+ * Search GraphQL: aggregations is [TaskV2Aggregation] / [AgentSessionV2Aggregation].
+ * Group-by is done by selecting those fields under tasks / agentSessions, not a groupBy argument.
+ */
 
 export function taskKpiQuery(from: number, to: number): string {
   return `{
@@ -7,16 +10,33 @@ export function taskKpiQuery(from: number, to: number): string {
     to: ${to}
     aggregations: [
       { field: "id", type: count, name: "offered" }
-      { field: "id", type: count, name: "answered", filters: { status: { equals: "handled" } } }
-      { field: "id", type: count, name: "abandoned", filters: { isAbandoned: { equals: true } } }
-      { field: "contactHandledWithinSla", type: count, name: "withinSla", filters: { contactHandledWithinSla: { equals: true } } }
-      { field: "ringingDuration", type: avg, name: "asa" }
-      { field: "connectedDuration", type: avg, name: "aht" }
+      {
+        field: "id"
+        type: count
+        name: "answered"
+        filter: { isContactHandled: { equals: true } }
+      }
+      {
+        field: "id"
+        type: count
+        name: "abandoned"
+        filter: { abandonedType: { notequals: null } }
+      }
+      {
+        field: "id"
+        type: count
+        name: "withinSla"
+        filter: { isWithInServiceLevel: { equals: true } }
+      }
+      { field: "ringingDuration", type: average, name: "asa" }
+      { field: "connectedDuration", type: average, name: "aht" }
     ]
   ) {
-    aggregationResponse {
-      name
-      value
+    tasks {
+      aggregation {
+        name
+        value
+      }
     }
   }
 }`;
@@ -28,13 +48,15 @@ export function channelMixQuery(from: number, to: number): string {
     from: ${from}
     to: ${to}
     aggregations: [
-      { field: "id", type: count, name: "byChannel", groupBy: "channelType" }
+      { field: "id", type: count, name: "byChannel" }
     ]
   ) {
-    aggregationResponse {
-      name
-      value
-      key
+    tasks {
+      channelType
+      aggregation {
+        name
+        value
+      }
     }
   }
 }`;
@@ -47,14 +69,18 @@ export function queueStatsQuery(from: number, to: number): string {
     to: ${to}
     filter: { isActive: { equals: true } }
     aggregations: [
-      { field: "id", type: count, name: "inQueue", groupBy: "lastQueue.name" }
-      { field: "totalDuration", type: max, name: "longestWait", groupBy: "lastQueue.name" }
+      { field: "id", type: count, name: "inQueue" }
+      { field: "lastQueue.duration", type: max, name: "longestWait" }
     ]
   ) {
-    aggregationResponse {
-      name
-      value
-      key
+    tasks {
+      lastQueue {
+        name
+      }
+      aggregation {
+        name
+        value
+      }
     }
   }
 }`;
@@ -67,13 +93,17 @@ export function agentStateQuery(from: number, to: number): string {
     to: ${to}
     filter: { isActive: { equals: true } }
     aggregations: [
-      { field: "id", type: count, name: "byState", groupBy: "channelInfo.currentState" }
+      { field: "id", type: count, name: "byState" }
     ]
   ) {
-    aggregationResponse {
-      name
-      value
-      key
+    agentSessions {
+      channelInfo {
+        currentState
+      }
+      aggregation {
+        name
+        value
+      }
     }
   }
 }`;

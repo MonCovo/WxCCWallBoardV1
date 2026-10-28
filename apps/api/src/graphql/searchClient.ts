@@ -1,6 +1,24 @@
 import type { TokenManager } from "../auth/tokenManager.js";
 import { config } from "../config.js";
 
+function summarizeSearchError(text: string): string {
+  try {
+    const json = JSON.parse(text) as {
+      error?: { message?: Array<{ description?: string }> };
+      errors?: Array<{ message?: string }>;
+    };
+    const descriptions = json.error?.message
+      ?.map((m) => m.description)
+      .filter(Boolean);
+    if (descriptions?.length) return descriptions.join("; ");
+    const gql = json.errors?.map((e) => e.message).filter(Boolean);
+    if (gql?.length) return gql.join("; ");
+  } catch {
+    // fall through to raw text
+  }
+  return text.slice(0, 500);
+}
+
 export class SearchClient {
   constructor(private readonly tokens: TokenManager) {}
 
@@ -28,7 +46,7 @@ export class SearchClient {
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Search API ${res.status}: ${text.slice(0, 300)}`);
+      throw new Error(`Search API ${res.status}: ${summarizeSearchError(text)}`);
     }
 
     const json = (await res.json()) as {

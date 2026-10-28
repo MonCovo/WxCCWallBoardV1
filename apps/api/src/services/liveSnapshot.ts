@@ -22,13 +22,56 @@ interface AggRow {
   key?: string;
 }
 
-interface AggPayload {
-  aggregationResponse?: AggRow[];
+interface Aggregation {
+  name?: string;
+  value?: number | string;
+}
+
+interface TaskNode {
+  channelType?: string;
+  lastQueue?: { name?: string; id?: string };
+  aggregation?: Aggregation | Aggregation[];
+}
+
+interface AgentNode {
+  channelInfo?: { currentState?: string };
+  aggregation?: Aggregation | Aggregation[];
 }
 
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function aggList(node: { aggregation?: Aggregation | Aggregation[] }): Aggregation[] {
+  const a = node.aggregation;
+  if (!a) return [];
+  return Array.isArray(a) ? a : [a];
+}
+
+function flattenTaskAggs(
+  tasks: TaskNode[] | undefined,
+  keyOf: (t: TaskNode) => string | undefined,
+): AggRow[] {
+  const rows: AggRow[] = [];
+  for (const task of tasks ?? []) {
+    const key = keyOf(task);
+    for (const a of aggList(task)) {
+      rows.push({ name: a.name, value: a.value, key });
+    }
+  }
+  return rows;
+}
+
+function flattenAgentAggs(sessions: AgentNode[] | undefined): AggRow[] {
+  const rows: AggRow[] = [];
+  for (const session of sessions ?? []) {
+    const key = session.channelInfo?.currentState;
+    for (const a of aggList(session)) {
+      rows.push({ name: a.name, value: a.value, key });
+    }
+  }
+  return rows;
 }
 
 function mapChannel(raw: string | undefined): ChannelType {
@@ -134,20 +177,30 @@ export async function fetchLiveSnapshot(
   const { from, to } = queryWindow();
 
   const [kpiData, channelData, queueData, agentData] = await Promise.all([
-    client.query<{ taskDetails: AggPayload }>(taskKpiQuery(from, to)),
-    client.query<{ taskDetails: AggPayload }>(channelMixQuery(from, to)),
-    client.query<{ taskDetails: AggPayload }>(queueStatsQuery(from, to)),
-    client.query<{ agentSession: AggPayload }>(agentStateQuery(from, to)),
+    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(taskKpiQuery(from, to)),
+    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+      channelMixQuery(from, to),
+    ),
+    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+      queueStatsQuery(from, to),
+    ),
+    client.query<{ agentSession: { agentSessions?: AgentNode[] } }>(
+      agentStateQuery(from, to),
+    ),
   ]);
 
   return {
     title: config.wallboardTitle,
     generatedAt: new Date().toISOString(),
-    kpis: parseKpis(kpiData.taskDetails?.aggregationResponse ?? []),
-    queues: parseQueues(queueData.taskDetails?.aggregationResponse ?? []),
-    agentStates: mapAgentStates(
-      agentData.agentSession?.aggregationResponse ?? [],
+    kpis: parseKpis(flattenTaskAggs(kpiData.taskDetails?.tasks, () => undefined)),
+    queues: parseQueues(
+      flattenTaskAggs(queueData.taskDetails?.tasks, (t) => t.lastQueue?.name),
     ),
-    channels: parseChannels(channelData.taskDetails?.aggregationResponse ?? []),
+    agentStates: mapAgentStates(
+      flattenAgentAggs(agentData.agentSession?.agentSessions),
+    ),
+    channels: parseChannels(
+      flattenTaskAggs(channelData.taskDetails?.tasks, (t) => t.channelType),
+    ),
   };
 }
