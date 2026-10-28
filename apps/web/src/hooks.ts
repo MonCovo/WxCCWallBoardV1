@@ -80,13 +80,18 @@ export function useSnapshot(pollMs = 5000) {
   return { snapshot, error };
 }
 
-export function useClock(timeZone?: string): string {
-  const [now, setNow] = useState(() => new Date());
+export function useNow(tickMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const id = setInterval(() => setNow(Date.now()), tickMs);
     return () => clearInterval(id);
-  }, []);
-  return now.toLocaleTimeString(undefined, {
+  }, [tickMs]);
+  return now;
+}
+
+export function useClock(timeZone?: string): string {
+  const now = useNow();
+  return new Date(now).toLocaleTimeString(undefined, {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",

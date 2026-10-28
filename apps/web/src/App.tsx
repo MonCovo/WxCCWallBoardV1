@@ -1,4 +1,4 @@
-import { formatDuration, useClock, useFilterSelection, useSnapshot } from "./hooks";
+import { formatDuration, useClock, useFilterSelection, useNow, useSnapshot } from "./hooks";
 import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
 import type {
   AgentAvailability,
@@ -201,16 +201,27 @@ function AgentRoster({
   agents: AgentRow[];
   emptyLabel: string;
 }) {
+  const now = useNow();
   if (agents.length === 0) {
     return <p className="empty-agents">{emptyLabel}</p>;
   }
   return (
     <ul className="agent-roster">
-      {agents.map((agent) => (
+      {agents.map((agent) => {
+        const elapsed =
+          agent.stateSince != null
+            ? Math.max(0, Math.floor((now - agent.stateSince) / 1000))
+            : undefined;
+        return (
         <li key={agent.id} className="agent-card">
           <div className="agent-card-head">
             <div className="agent-identity">
-              <span className="agent-name">{agent.name}</span>
+              <span className="agent-name-line">
+                <span className="agent-name">{agent.name}</span>
+                {elapsed != null ? (
+                  <span className="agent-timer">{formatDuration(elapsed)}</span>
+                ) : null}
+              </span>
               <span className="agent-team">{agent.team}</span>
             </div>
             <span className={`agent-primary ${availabilityTone(agent.status)}`}>
@@ -234,7 +245,8 @@ function AgentRoster({
             )}
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }
@@ -258,7 +270,6 @@ function AgentStates({
     { label: "Engaged", value: a.engaged, tone: "engaged" },
     { label: "Wrap-up", value: a.wrapUp, tone: "warn" },
     { label: "Unavailable", value: a.unavailable, tone: "warn" },
-    { label: "Logged out", value: a.loggedOut, tone: "" },
   ];
   return (
     <section className="panel agent-panel" aria-label="Agent states">

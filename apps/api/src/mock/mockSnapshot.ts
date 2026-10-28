@@ -59,6 +59,14 @@ export function buildMockSnapshot(): WallboardSnapshot {
         longestWaitSeconds: Math.max(0, wobble(1800, 200)),
         serviceLevelPct: wobble(74, 5),
       },
+      {
+        id: "q-whatsapp",
+        name: "WhatsApp",
+        channel: "social",
+        inQueue: Math.max(0, wobble(2, 2)),
+        longestWaitSeconds: Math.max(0, wobble(90, 25)),
+        serviceLevelPct: wobble(91, 4),
+      },
     ],
     agents: [
       {
@@ -66,6 +74,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
         name: "Alex Rivera",
         team: "Sales",
         status: "engaged",
+        stateSince: Date.now() - 187_000,
         channels: [
           { channel: "telephony", status: "engaged", label: "Connected" },
           { channel: "chat", status: "available", label: "Available" },
@@ -76,6 +85,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
         name: "Jordan Lee",
         team: "Sales",
         status: "available",
+        stateSince: Date.now() - 742_000,
         channels: [
           { channel: "telephony", status: "available", label: "Available" },
           { channel: "email", status: "available", label: "Available" },
@@ -86,6 +96,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
         name: "Sam Patel",
         team: "Support",
         status: "wrapUp",
+        stateSince: Date.now() - 46_000,
         channels: [
           { channel: "telephony", status: "wrapUp", label: "Wrap-up" },
           { channel: "chat", status: "available", label: "Available" },
@@ -96,6 +107,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
         name: "Riley Chen",
         team: "Operations",
         status: "unavailable",
+        stateSince: Date.now() - 512_000,
         channels: [
           { channel: "telephony", status: "unavailable", label: "Break" },
           { channel: "social", status: "unavailable", label: "Break" },
@@ -106,6 +118,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
         name: "Casey Nguyen",
         team: "Support",
         status: "engaged",
+        stateSince: Date.now() - 93_000,
         channels: [
           { channel: "chat", status: "engaged", label: "Connected" },
           { channel: "email", status: "available", label: "Available" },
@@ -123,7 +136,7 @@ export function buildMockSnapshot(): WallboardSnapshot {
       { channel: "telephony", count: grow(160, 10) },
       { channel: "chat", count: grow(45, 5) },
       { channel: "email", count: grow(30, 4) },
-      { channel: "social", count: grow(13, 3) },
+      { channel: "social", count: grow(31, 4) },
     ],
   };
 }

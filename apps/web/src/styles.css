@@ -396,7 +396,7 @@ td.empty {
 
 .agent-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -480,9 +480,27 @@ td.empty {
   min-width: 0;
 }
 
+.agent-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
 .agent-name {
   font-size: 1.15rem;
   font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-timer {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--muted);
 }
 
 .agent-team {
@@ -579,7 +597,7 @@ td.empty {
     grid-template-columns: 1fr;
   }
   .agent-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -588,7 +606,7 @@ td.empty {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .agent-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .header {
     flex-direction: column;

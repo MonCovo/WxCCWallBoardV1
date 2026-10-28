@@ -44,6 +44,8 @@ export interface AgentRow {
   name: string;
   team: string;
   status: AgentAvailability;
+  /** Epoch ms when the agent entered `status`. */
+  stateSince?: number;
   channels: AgentChannelStatus[];
 }
 

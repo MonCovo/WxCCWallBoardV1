@@ -23,6 +23,8 @@ interface AggRow {
   name?: string;
   value?: number | string;
   key?: string;
+  channelType?: string;
+  channelSubType?: string;
 }
 
 interface Aggregation {
@@ -32,14 +34,26 @@ interface Aggregation {
 
 interface TaskNode {
   channelType?: string;
+  channelSubType?: string;
   lastQueue?: { name?: string; id?: string };
   aggregation?: Aggregation | Aggregation[];
+}
+
+interface ActivityNode {
+  startTime?: number | string;
+  endTime?: number | string;
+  duration?: number | string;
+  state?: string;
+  isCurrentActivity?: boolean;
 }
 
 interface ChannelInfo {
   currentState?: string;
   channelType?: string;
+  subChannelType?: string;
   idleCodeName?: string;
+  lastActivityTime?: number | string;
+  activities?: { nodes?: ActivityNode | ActivityNode[] };
 }
 
 interface AgentNode {
@@ -73,7 +87,13 @@ function flattenTaskAggs(
   for (const task of tasks ?? []) {
     const key = keyOf(task);
     for (const a of aggList(task)) {
-      rows.push({ name: a.name, value: a.value, key });
+      rows.push({
+        name: a.name,
+        value: a.value,
+        key,
+        channelType: task.channelType,
+        channelSubType: task.channelSubType,
+      });
     }
   }
   return rows;
@@ -83,6 +103,50 @@ function channelsOf(session: AgentNode): ChannelInfo[] {
   const info = session.channelInfo;
   if (!info) return [];
   return Array.isArray(info) ? info : [info];
+}
+
+function asList<T>(value: T | T[] | undefined): T[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function toEpochMs(value: unknown): number | undefined {
+  const n = num(value);
+  if (n <= 0) return undefined;
+  return n < 1e12 ? n * 1000 : n;
+}
+
+function activityStartMs(node: ActivityNode): number | undefined {
+  const start = toEpochMs(node.startTime);
+  const end = toEpochMs(node.endTime);
+  if (start && end) return Math.min(start, end);
+  return start ?? end;
+}
+
+function channelStateSince(channel: ChannelInfo, nowMs: number): number | undefined {
+  const nodes = asList(channel.activities?.nodes);
+  const current =
+    nodes.find((node) => node.isCurrentActivity) ??
+    nodes.find((node) => !toEpochMs(node.endTime));
+  if (current) {
+    const start = activityStartMs(current);
+    if (start) return start;
+    const durationMs = num(current.duration);
+    if (durationMs > 0) return nowMs - durationMs;
+  }
+  return toEpochMs(channel.lastActivityTime);
+}
+
+function statusSince(
+  channels: Array<{ status: AgentAvailability; stateSince?: number }>,
+  status: AgentAvailability,
+): number | undefined {
+  const times = channels
+    .filter((channel) => channel.status === status)
+    .map((channel) => channel.stateSince)
+    .filter((value): value is number => typeof value === "number");
+  if (times.length === 0) return undefined;
+  return Math.min(...times);
 }
 
 const CHANNEL_ORDER: ChannelType[] = [
@@ -172,9 +236,17 @@ function emptyAgentCounts(): AgentStateCounts {
 const UNASSIGNED_TEAM = "Unassigned";
 
 function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
+  const nowMs = Date.now();
   const byId = new Map<
     string,
-    { name: string; team: string; channels: Map<ChannelType, AgentChannelStatus> }
+    {
+      name: string;
+      team: string;
+      channels: Map<
+        ChannelType,
+        AgentChannelStatus & { stateSince?: number }
+      >;
+    }
   >();
 
   (sessions ?? []).forEach((session, index) => {
@@ -198,12 +270,13 @@ function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
     }
 
     for (const channel of channelsOf(session)) {
-      const type = mapChannel(channel.channelType);
+      const type = mapChannel(channel.channelType, channel.subChannelType);
       const status = classifyChannelState(channel.currentState);
-      const next: AgentChannelStatus = {
+      const next: AgentChannelStatus & { stateSince?: number } = {
         channel: type,
         status,
         label: statusLabel(status, channel.currentState, channel.idleCodeName),
+        stateSince: channelStateSince(channel, nowMs),
       };
       const prev = row.channels.get(type);
       if (!prev || STATE_PRIORITY[status] > STATE_PRIORITY[prev.status]) {
@@ -218,12 +291,14 @@ function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
         const channel = row.channels.get(type);
         return channel ? [channel] : [];
       });
+      const status = primaryState(channels.map((c) => c.status));
       return {
         id,
         name: row.name,
         team: row.team,
-        status: primaryState(channels.map((c) => c.status)),
-        channels,
+        status,
+        stateSince: statusSince(channels, status),
+        channels: channels.map(({ stateSince: _since, ...channel }) => channel),
       };
     })
     .sort((a, b) => {
@@ -260,12 +335,29 @@ async function fetchActiveAgentSessions(
   return sessions;
 }
 
-function mapChannel(raw: string | undefined): ChannelType {
-  const c = (raw || "").toLowerCase();
-  if (c.includes("tele") || c.includes("voice") || c === "phone") return "telephony";
-  if (c.includes("chat")) return "chat";
+function mapChannel(...parts: Array<string | undefined>): ChannelType {
+  const c = parts
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ")
+    .toLowerCase();
+  if (!c) return "other";
   if (c.includes("email") || c.includes("mail")) return "email";
-  if (c.includes("social")) return "social";
+  if (c.includes("chat")) return "chat";
+  if (
+    c.includes("social") ||
+    c.includes("whatsapp") ||
+    c.includes("whats_app") ||
+    c.includes("facebook") ||
+    c.includes("messenger") ||
+    c.includes("twitter") ||
+    c.includes("sms") ||
+    c.includes("apple")
+  ) {
+    return "social";
+  }
+  if (c.includes("tele") || c.includes("voice") || /(^|\s)phone(\s|$)/.test(c)) {
+    return "telephony";
+  }
   return "other";
 }
 
@@ -292,34 +384,64 @@ function parseKpis(rows: AggRow[]): Kpis {
   };
 }
 
+function preferChannel(current: ChannelType, next: ChannelType): ChannelType {
+  const rank: Record<ChannelType, number> = {
+    social: 4,
+    chat: 3,
+    email: 2,
+    telephony: 1,
+    other: 0,
+  };
+  return rank[next] > rank[current] ? next : current;
+}
+
 function parseQueues(rows: AggRow[]): QueueRow[] {
-  const inQueue = new Map<string, number>();
-  const longest = new Map<string, number>();
+  type Acc = {
+    name: string;
+    channel: ChannelType;
+    inQueue: number;
+    longestWaitSeconds: number;
+  };
+  const byName = new Map<string, Acc>();
   for (const row of rows) {
     const name = row.key || "Unknown";
-    if (row.name === "inQueue") inQueue.set(name, num(row.value));
+    const channel = mapChannel(row.channelType, row.channelSubType, name);
+    let acc = byName.get(name);
+    if (!acc) {
+      acc = { name, channel, inQueue: 0, longestWaitSeconds: 0 };
+      byName.set(name, acc);
+    } else {
+      acc.channel = preferChannel(acc.channel, channel);
+    }
+    if (row.name === "inQueue") acc.inQueue += num(row.value);
     if (row.name === "longestWait") {
-      longest.set(name, Math.round(num(row.value) / 1000));
+      acc.longestWaitSeconds = Math.max(
+        acc.longestWaitSeconds,
+        Math.round(num(row.value) / 1000),
+      );
     }
   }
-  const names = new Set([...inQueue.keys(), ...longest.keys()]);
-  return [...names].map((name) => ({
-    id: name,
-    name,
-    channel: "telephony" as ChannelType,
-    inQueue: inQueue.get(name) ?? 0,
-    longestWaitSeconds: longest.get(name) ?? 0,
+  return [...byName.values()].map((q) => ({
+    id: q.name,
+    name: q.name,
+    channel: q.channel,
+    inQueue: q.inQueue,
+    longestWaitSeconds: q.longestWaitSeconds,
     serviceLevelPct: 0,
   }));
 }
 
 function parseChannels(rows: AggRow[]): ChannelMixItem[] {
-  return rows
-    .filter((r) => r.name === "byChannel" || r.key)
-    .map((r) => ({
-      channel: mapChannel(r.key),
-      count: num(r.value),
-    }));
+  const byType = new Map<ChannelType, number>();
+  for (const row of rows) {
+    if (row.name !== "byChannel" && !row.key) continue;
+    const channel = mapChannel(row.key, row.channelType, row.channelSubType);
+    byType.set(channel, (byType.get(channel) ?? 0) + num(row.value));
+  }
+  return CHANNEL_ORDER.flatMap((channel) => {
+    const count = byType.get(channel);
+    return count ? [{ channel, count }] : [];
+  });
 }
 
 /**

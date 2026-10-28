@@ -53,6 +53,7 @@ export function channelMixQuery(from: number, to: number): string {
   ) {
     tasks {
       channelType
+      channelSubType
       aggregation {
         name
         value
@@ -77,6 +78,8 @@ export function queueStatsQuery(from: number, to: number): string {
       lastQueue {
         name
       }
+      channelType
+      channelSubType
       aggregation {
         name
         value
@@ -111,6 +114,16 @@ export function agentStateQuery(
         currentState
         channelType
         idleCodeName
+        lastActivityTime
+        activities {
+          nodes {
+            startTime
+            endTime
+            duration
+            state
+            isCurrentActivity
+          }
+        }
       }
     }
     pageInfo {
