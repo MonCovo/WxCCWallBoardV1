@@ -5,6 +5,23 @@ import { buildMockSnapshot } from "../mock/mockSnapshot.js";
 import type { HealthStatus, WallboardSnapshot } from "../types.js";
 import { fetchLiveSnapshot } from "./liveSnapshot.js";
 
+function formatError(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  for (let i = 0; i < 4 && current; i++) {
+    if (current instanceof Error) {
+      if (current.message) parts.push(current.message);
+      const code = (current as Error & { code?: string }).code;
+      if (code) parts.push(`code=${code}`);
+      current = current.cause;
+    } else {
+      parts.push(String(current));
+      break;
+    }
+  }
+  return parts.join(" | ") || "Unknown snapshot error";
+}
+
 export class SnapshotService {
   private snapshot: WallboardSnapshot;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -84,7 +101,7 @@ export class SnapshotService {
       this.snapshot = { ...live, stale: false, mock: false };
       this.lastError = undefined;
     } catch (err) {
-      const message = (err as Error).message || "Unknown snapshot error";
+      const message = formatError(err);
       this.lastError = message;
       console.error("[snapshot]", message);
       this.snapshot = {
