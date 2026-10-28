@@ -49,32 +49,45 @@ export function useSnapshot(pollMs = 5000) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/snapshot${displayKeyParam()}`);
+      const res = await fetch(`/api/snapshot${displayKeyParam()}`, {
+        signal: AbortSignal.timeout(8000),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as WallboardSnapshot;
       setSnapshot(data);
       setError(null);
     } catch (err) {
-      setError((err as Error).message);
+      setError((err as Error).name === "TimeoutError" ? "Snapshot timed out" : (err as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    const id = setInterval(() => void load(), pollMs);
+    let busy = false;
+    const tick = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        await load();
+      } finally {
+        busy = false;
+      }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), pollMs);
     return () => clearInterval(id);
   }, [load, pollMs]);
 
   return { snapshot, error };
 }
 
-export function useClock(): string {
+export function useClock(timeZone?: string): string {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
   return now.toLocaleTimeString(undefined, {
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",

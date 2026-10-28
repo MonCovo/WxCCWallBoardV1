@@ -1,10 +1,15 @@
 import type { WallboardSnapshot } from "../types.js";
 import { config } from "../config.js";
+import { statsPeriod } from "../util/timeWindow.js";
 
-/** Deterministic-ish mock that wobbles slightly for demos. */
+/** Deterministic-ish mock that wobbles slightly and grows through the stats period. */
 export function buildMockSnapshot(): WallboardSnapshot {
+  const period = statsPeriod();
   const tick = Math.floor(Date.now() / 15_000);
   const wobble = (n: number, amp: number) => n + ((tick * 7) % (amp * 2)) - amp;
+  const span = Math.max(period.intervalHours * 60 * 60 * 1000, 1);
+  const frac = Math.min(1, Math.max(0, (period.to - period.from) / span));
+  const grow = (n: number, amp: number) => Math.max(0, Math.round(wobble(n, amp) * frac));
 
   return {
     title: config.wallboardTitle,
@@ -12,10 +17,11 @@ export function buildMockSnapshot(): WallboardSnapshot {
     generatedAt: new Date().toISOString(),
     stale: false,
     mock: true,
+    period,
     kpis: {
-      offered: wobble(248, 8),
-      answered: wobble(221, 6),
-      abandoned: wobble(27, 3),
+      offered: grow(248, 8),
+      answered: grow(221, 6),
+      abandoned: grow(27, 3),
       serviceLevelPct: Math.min(99, Math.max(70, wobble(86, 4))),
       asaSeconds: Math.max(5, wobble(28, 5)),
       ahtSeconds: Math.max(60, wobble(312, 20)),
@@ -114,10 +120,10 @@ export function buildMockSnapshot(): WallboardSnapshot {
       loggedOut: 0,
     },
     channels: [
-      { channel: "telephony", count: wobble(160, 10) },
-      { channel: "chat", count: wobble(45, 5) },
-      { channel: "email", count: wobble(30, 4) },
-      { channel: "social", count: wobble(13, 3) },
+      { channel: "telephony", count: grow(160, 10) },
+      { channel: "chat", count: grow(45, 5) },
+      { channel: "email", count: grow(30, 4) },
+      { channel: "social", count: grow(13, 3) },
     ],
   };
 }

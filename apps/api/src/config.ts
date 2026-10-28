@@ -17,6 +17,11 @@ function int(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function hhmm(value: string | undefined, fallback: string): string {
+  const v = (value ?? "").trim();
+  return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(v) ? v : fallback;
+}
+
 export const config = {
   port: int(process.env.PORT, 3001),
   mockData: bool(process.env.MOCK_DATA, true),
@@ -27,6 +32,18 @@ export const config = {
   snapshotIntervalMs: int(process.env.SNAPSHOT_INTERVAL_MS, 30_000),
   displayKey: process.env.DISPLAY_KEY?.trim() || "",
   orgTimezone: process.env.ORG_TIMEZONE || "UTC",
+  /**
+   * Clock time (HH:MM) in orgTimezone when a new cumulative stats period starts.
+   * Default 00:00 = midnight. Combined with statsIntervalHours.
+   */
+  statsResetAt: hhmm(process.env.STATS_RESET_AT, "00:00"),
+  /** Length of each cumulative KPI period. 24 = one period per reset clock time. */
+  statsIntervalHours: int(process.env.STATS_INTERVAL_HOURS, 24),
+  /**
+   * Lookback for live agents / in-queue contacts. Independent of KPI reset so
+   * overnight sessions are not dropped when the stats period rolls.
+   */
+  liveLookbackHours: int(process.env.LIVE_LOOKBACK_HOURS, 168),
   webex: {
     clientId: process.env.WEBEX_CLIENT_ID || "",
     clientSecret: process.env.WEBEX_CLIENT_SECRET || "",

@@ -31,8 +31,12 @@ function channelLabel(c: ChannelType): string {
 }
 
 function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: string }) {
-  const updated = new Date(snapshot.generatedAt).toLocaleTimeString();
+  const tz = snapshot.period?.timezone;
+  const updated = new Date(snapshot.generatedAt).toLocaleTimeString(undefined, {
+    timeZone: tz,
+  });
   const health = snapshot.stale ? "stale" : "live";
+  const period = snapshot.period?.label;
   return (
     <header className="header">
       <div className="header-brand">
@@ -48,6 +52,7 @@ function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: strin
           <h1>{snapshot.title}</h1>
           <p className="meta">
             Updated {updated}
+            {period ? ` · ${period}` : ""}
             {snapshot.mock ? " · MOCK" : ""}
             {snapshot.error ? ` · ${snapshot.error}` : ""}
           </p>
@@ -310,7 +315,7 @@ function ChannelMix({ snapshot }: { snapshot: WallboardSnapshot }) {
 
 export function App() {
   const { snapshot, error } = useSnapshot(5000);
-  const clock = useClock();
+  const clock = useClock(snapshot?.period?.timezone);
   const [selectedTeams, setSelectedTeams] = useFilterSelection("wallboard.teams");
   const [selectedQueues, setSelectedQueues] = useFilterSelection("wallboard.queues");
 

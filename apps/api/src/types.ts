@@ -52,6 +52,16 @@ export interface ChannelMixItem {
   count: number;
 }
 
+/** Cumulative KPI window currently driving offered/answered/abandoned/SL/ASA/AHT/channels. */
+export interface StatsPeriod {
+  from: number;
+  to: number;
+  timezone: string;
+  resetAt: string;
+  intervalHours: number;
+  label: string;
+}
+
 export interface WallboardSnapshot {
   title: string;
   logoUrl: string;
@@ -59,6 +69,7 @@ export interface WallboardSnapshot {
   stale: boolean;
   error?: string;
   mock: boolean;
+  period: StatsPeriod;
   kpis: Kpis;
   queues: QueueRow[];
   agentStates: AgentStateCounts;

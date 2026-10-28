@@ -54,7 +54,7 @@ async function main(): Promise<void> {
 
   app.listen(config.port, () => {
     console.log(
-      `[api] listening on :${config.port} (mock=${config.mockData}, interval=${config.snapshotIntervalMs}ms)`,
+      `[api] listening on :${config.port} (mock=${config.mockData}, interval=${config.snapshotIntervalMs}ms, tz=${config.orgTimezone}, stats=${config.statsResetAt}/${config.statsIntervalHours}h)`,
     );
   });
 }

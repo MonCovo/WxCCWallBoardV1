@@ -1,4 +1,4 @@
-/** Aggregation queries for wallboard KPIs (rolling start-of-day → now).
+/** Aggregation queries for wallboard KPIs (configurable stats period → now).
  * Search GraphQL: aggregations is [TaskV2Aggregation] / [AgentSessionV2Aggregation].
  * Group-by is done by selecting those fields under tasks / agentSessions, not a groupBy argument.
  */

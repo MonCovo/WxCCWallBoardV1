@@ -17,7 +17,7 @@ import type {
   QueueRow,
   WallboardSnapshot,
 } from "../types.js";
-import { queryWindow } from "../util/timeWindow.js";
+import { liveWindow, statsPeriod } from "../util/timeWindow.js";
 
 interface AggRow {
   name?: string;
@@ -329,17 +329,20 @@ function parseChannels(rows: AggRow[]): ChannelMixItem[] {
 export async function fetchLiveSnapshot(
   client: SearchClient,
 ): Promise<Omit<WallboardSnapshot, "stale" | "error" | "mock">> {
-  const { from, to } = queryWindow();
+  const period = statsPeriod();
+  const live = liveWindow();
 
   const [kpiData, channelData, queueData, agentSessions] = await Promise.all([
-    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(taskKpiQuery(from, to)),
     client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
-      channelMixQuery(from, to),
+      taskKpiQuery(period.from, period.to),
     ),
     client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
-      queueStatsQuery(from, to),
+      channelMixQuery(period.from, period.to),
     ),
-    fetchActiveAgentSessions(client, from, to),
+    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+      queueStatsQuery(live.from, live.to),
+    ),
+    fetchActiveAgentSessions(client, live.from, live.to),
   ]);
 
   const agents = mapAgents(agentSessions);
@@ -348,6 +351,7 @@ export async function fetchLiveSnapshot(
     title: config.wallboardTitle,
     logoUrl: config.wallboardLogoUrl,
     generatedAt: new Date().toISOString(),
+    period,
     kpis: parseKpis(flattenTaskAggs(kpiData.taskDetails?.tasks, () => undefined)),
     queues: parseQueues(
       flattenTaskAggs(queueData.taskDetails?.tasks, (t) => t.lastQueue?.name),

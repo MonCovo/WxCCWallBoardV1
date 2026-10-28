@@ -3,6 +3,7 @@ import { config, assertLiveConfig } from "../config.js";
 import { SearchClient } from "../graphql/searchClient.js";
 import { buildMockSnapshot } from "../mock/mockSnapshot.js";
 import type { HealthStatus, WallboardSnapshot } from "../types.js";
+import { emptyKpis, statsPeriod } from "../util/timeWindow.js";
 import { fetchLiveSnapshot } from "./liveSnapshot.js";
 
 function formatError(err: unknown): string {
@@ -25,6 +26,7 @@ function formatError(err: unknown): string {
 export class SnapshotService {
   private snapshot: WallboardSnapshot;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private inflight: Promise<void> | null = null;
   private lastError?: string;
   private readonly search: SearchClient | null;
 
@@ -40,14 +42,8 @@ export class SnapshotService {
         mock: false,
         stale: true,
         error: "Waiting for first live poll",
-        kpis: {
-          offered: 0,
-          answered: 0,
-          abandoned: 0,
-          serviceLevelPct: 0,
-          asaSeconds: 0,
-          ahtSeconds: 0,
-        },
+        period: statsPeriod(),
+        kpis: emptyKpis(),
         queues: [],
         agents: [],
         agentStates: {
@@ -90,6 +86,14 @@ export class SnapshotService {
   }
 
   async refresh(): Promise<void> {
+    if (this.inflight) return this.inflight;
+    this.inflight = this.poll().finally(() => {
+      this.inflight = null;
+    });
+    return this.inflight;
+  }
+
+  private async poll(): Promise<void> {
     if (config.mockData) {
       this.snapshot = buildMockSnapshot();
       this.lastError = undefined;
@@ -105,12 +109,16 @@ export class SnapshotService {
       const message = formatError(err);
       this.lastError = message;
       console.error("[snapshot]", message);
+      const period = statsPeriod();
+      const rolled = this.snapshot.period.from !== period.from;
       this.snapshot = {
         ...this.snapshot,
         generatedAt: new Date().toISOString(),
         stale: true,
         mock: false,
         error: message,
+        period,
+        ...(rolled ? { kpis: emptyKpis(), channels: [] } : {}),
       };
     }
   }
