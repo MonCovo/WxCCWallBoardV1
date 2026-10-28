@@ -108,11 +108,4 @@ Not implemented (Cisco's "tier 3"):
 
 For most TV wallboards, a one-time Integration mint plus Service App auto-refresh is enough. Full unattended remint needs those extra env vars and a small TokenManager change.
 
-## Later README / user guide (not this pass)
 
-Current docs ([`README.md`](README.md), [`docs/deploy.md`](docs/deploy.md)) mention the Integration option in one sentence and treat PAT as the default. When we rewrite:
-
-- Split **PAT (lab / first mint)** vs **Integration (production remint identity)**
-- Spell out that there are two Webex apps and two credential sets
-- Keep mock-mode quick start short; put live auth in the user guide
-- Do not implement Integration auto-refresh unless we explicitly choose that as a follow-up
