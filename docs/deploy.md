@@ -84,9 +84,58 @@ MOCK_DATA=false npm start
 
 ### Platform notes
 
-Any host that supports a container or Node 20+ process and env secrets works: Azure App Service / Container Apps, AWS ECS/App Runner, Render, Railway, a VM behind nginx, etc.
+Any host that supports a container or Node 20+ process and env secrets works: Azure App Service / Container Apps, AWS ECS/App Runner, Render, Railway, a VM behind nginx, a Raspberry Pi, etc.
 
 **Do not** use GitHub Pages alone — there is no safe place for Service App secrets in a static site.
+
+### Raspberry Pi / Linux kiosk
+
+The stack is OS-agnostic (Node 20+ or Docker). A Pi can be the **server**, the **display**, or both. Use **64-bit Raspberry Pi OS** on a Pi 4/5 (2GB+; 4GB if Chromium kiosk runs on the same box). Always `npm install` *on* the Pi — do not copy Windows `node_modules`.
+
+**Docker:** same `docker compose up -d --build` as above (`node:20-alpine` is linux/arm64). Compose `restart: unless-stopped` is enough; no systemd unit required.
+
+**Node + systemd** (after `npm install && npm run build`, with `.env` at the repo root):
+
+```ini
+# /etc/systemd/system/wxcc-wallboard.service
+[Unit]
+Description=WxCC Wallboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/WxCCWallBoard
+Environment=NODE_ENV=production
+EnvironmentFile=/home/pi/WxCCWallBoard/.env
+ExecStart=/usr/bin/node apps/api/dist/index.js
+Restart=on-failure
+RestartSec=5
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now wxcc-wallboard
+```
+
+Adjust `WorkingDirectory`, `User`, and the Node binary path (`which node`) to match the machine. Set `ORG_TIMEZONE` (e.g. `Europe/London`) and keep the Pi on NTP.
+
+**Kiosk display** (same Pi, HDMI to the TV): enable desktop auto-login, disable screen blanking, then autostart Chromium:
+
+```ini
+# ~/.config/autostart/wxcc-wallboard.desktop
+[Desktop Entry]
+Type=Application
+Name=WxCC Wallboard
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars http://localhost:3001
+X-GNOME-Autostart-enabled=true
+```
+
+If `DISPLAY_KEY` is set, use `http://localhost:3001/?key=<DISPLAY_KEY>`. The binary may be `chromium` rather than `chromium-browser`. Other TVs on the LAN can open `http://<pi-hostname>:3001` instead — the API already listens on all interfaces. HTTP is fine on a trusted LAN; put Caddy/nginx in front only if you expose it beyond that.
 
 ## 5. Point the TV at the wallboard
 
