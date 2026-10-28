@@ -49,6 +49,7 @@ export class SnapshotService {
           ahtSeconds: 0,
         },
         queues: [],
+        agents: [],
         agentStates: {
           available: 0,
           engaged: 0,

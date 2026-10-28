@@ -1,5 +1,11 @@
 import { formatDuration, useClock, useSnapshot } from "./hooks";
-import type { ChannelType, QueueRow, WallboardSnapshot } from "./types";
+import type {
+  AgentAvailability,
+  AgentRow,
+  ChannelType,
+  QueueRow,
+  WallboardSnapshot,
+} from "./types";
 
 function slaClass(pct: number): string {
   if (pct >= 85) return "ok";
@@ -111,17 +117,82 @@ function QueueTable({ queues }: { queues: QueueRow[] }) {
   );
 }
 
+function availabilityTone(status: AgentAvailability): string {
+  switch (status) {
+    case "available":
+      return "ok";
+    case "engaged":
+      return "engaged";
+    case "wrapUp":
+    case "unavailable":
+      return "warn";
+    default:
+      return "";
+  }
+}
+
+function availabilityLabel(status: AgentAvailability): string {
+  switch (status) {
+    case "available":
+      return "Available";
+    case "engaged":
+      return "Engaged";
+    case "wrapUp":
+      return "Wrap-up";
+    case "unavailable":
+      return "Unavailable";
+    case "loggedOut":
+      return "Logged out";
+  }
+}
+
+function AgentRoster({ agents }: { agents: AgentRow[] }) {
+  if (agents.length === 0) {
+    return <p className="empty-agents">No agents signed in</p>;
+  }
+  return (
+    <ul className="agent-roster">
+      {agents.map((agent) => (
+        <li key={agent.id} className="agent-card">
+          <div className="agent-card-head">
+            <span className="agent-name">{agent.name}</span>
+            <span className={`agent-primary ${availabilityTone(agent.status)}`}>
+              {availabilityLabel(agent.status)}
+            </span>
+          </div>
+          <div className="agent-channels">
+            {agent.channels.length === 0 ? (
+              <span className="channel-pill">No channels</span>
+            ) : (
+              agent.channels.map((ch) => (
+                <span
+                  key={ch.channel}
+                  className={`channel-pill ${availabilityTone(ch.status)}`}
+                >
+                  <span className={`channel-dot channel-${ch.channel}`} />
+                  {channelLabel(ch.channel)}
+                  <span className="channel-status">{ch.label}</span>
+                </span>
+              ))
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function AgentStates({ snapshot }: { snapshot: WallboardSnapshot }) {
   const a = snapshot.agentStates;
   const rows = [
     { label: "Available", value: a.available, tone: "ok" },
-    { label: "Engaged", value: a.engaged, tone: "" },
+    { label: "Engaged", value: a.engaged, tone: "engaged" },
     { label: "Wrap-up", value: a.wrapUp, tone: "warn" },
     { label: "Unavailable", value: a.unavailable, tone: "warn" },
     { label: "Logged out", value: a.loggedOut, tone: "" },
   ];
   return (
-    <section className="panel" aria-label="Agent states">
+    <section className="panel agent-panel" aria-label="Agent states">
       <h2>Agents</h2>
       <div className="agent-grid">
         {rows.map((r) => (
@@ -131,6 +202,7 @@ function AgentStates({ snapshot }: { snapshot: WallboardSnapshot }) {
           </div>
         ))}
       </div>
+      <AgentRoster agents={snapshot.agents ?? []} />
     </section>
   );
 }

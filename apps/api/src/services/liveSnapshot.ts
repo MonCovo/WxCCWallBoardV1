@@ -7,6 +7,9 @@ import {
   taskKpiQuery,
 } from "../queries/wallboardQueries.js";
 import type {
+  AgentAvailability,
+  AgentChannelStatus,
+  AgentRow,
   AgentStateCounts,
   ChannelMixItem,
   ChannelType,
@@ -33,9 +36,21 @@ interface TaskNode {
   aggregation?: Aggregation | Aggregation[];
 }
 
+interface ChannelInfo {
+  currentState?: string;
+  channelType?: string;
+  idleCodeName?: string;
+}
+
 interface AgentNode {
-  channelInfo?: { currentState?: string };
-  aggregation?: Aggregation | Aggregation[];
+  agentId?: string;
+  agentName?: string;
+  channelInfo?: ChannelInfo | ChannelInfo[];
+}
+
+interface PageInfo {
+  hasNextPage?: boolean;
+  endCursor?: string | null;
 }
 
 function num(v: unknown): number {
@@ -63,15 +78,175 @@ function flattenTaskAggs(
   return rows;
 }
 
-function flattenAgentAggs(sessions: AgentNode[] | undefined): AggRow[] {
-  const rows: AggRow[] = [];
-  for (const session of sessions ?? []) {
-    const key = session.channelInfo?.currentState;
-    for (const a of aggList(session)) {
-      rows.push({ name: a.name, value: a.value, key });
-    }
+function channelsOf(session: AgentNode): ChannelInfo[] {
+  const info = session.channelInfo;
+  if (!info) return [];
+  return Array.isArray(info) ? info : [info];
+}
+
+const CHANNEL_ORDER: ChannelType[] = [
+  "telephony",
+  "chat",
+  "email",
+  "social",
+  "other",
+];
+
+const STATE_PRIORITY: Record<AgentAvailability, number> = {
+  engaged: 4,
+  wrapUp: 3,
+  available: 2,
+  unavailable: 1,
+  loggedOut: 0,
+};
+
+function classifyChannelState(raw: string | undefined): AgentAvailability {
+  const key = (raw || "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (!key) return "unavailable";
+  if (
+    key.includes("connected") ||
+    key.includes("consult") ||
+    key.includes("conference") ||
+    key.includes("ringing") ||
+    key.includes("reserved")
+  ) {
+    return "engaged";
   }
-  return rows;
+  if (key.includes("wrap")) return "wrapUp";
+  if (
+    key.includes("idle") ||
+    key.includes("not_ready") ||
+    key.includes("notready") ||
+    key.includes("unavailable")
+  ) {
+    return "unavailable";
+  }
+  if (key.includes("avail") || key === "ready") return "available";
+  if (key.includes("logout") || key.includes("logged_out") || key === "loggedout") {
+    return "loggedOut";
+  }
+  return "unavailable";
+}
+
+function primaryState(states: AgentAvailability[]): AgentAvailability {
+  if (states.length === 0) return "unavailable";
+  return states.reduce((best, state) =>
+    STATE_PRIORITY[state] > STATE_PRIORITY[best] ? state : best,
+  );
+}
+
+function statusLabel(
+  bucket: AgentAvailability,
+  raw: string | undefined,
+  idleCode: string | undefined,
+): string {
+  const code = idleCode?.trim();
+  if (bucket === "unavailable" && code) return code;
+  const key = (raw || "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (key.includes("ringing")) return "Ringing";
+  if (key.includes("consult")) return "Consulting";
+  if (key.includes("conference")) return "Conference";
+  if (key.includes("reserved")) return "Reserved";
+  if (key.includes("connected")) return "Connected";
+  if (key.includes("wrap")) return "Wrap-up";
+  if (key.includes("idle")) return code || "Idle";
+  if (key.includes("avail")) return "Available";
+  if (bucket === "available") return "Available";
+  if (bucket === "engaged") return "Connected";
+  if (bucket === "wrapUp") return "Wrap-up";
+  if (bucket === "loggedOut") return "Logged out";
+  return "Unavailable";
+}
+
+function emptyAgentCounts(): AgentStateCounts {
+  return {
+    available: 0,
+    engaged: 0,
+    unavailable: 0,
+    wrapUp: 0,
+    loggedOut: 0,
+  };
+}
+
+function mapAgents(sessions: AgentNode[] | undefined): AgentRow[] {
+  const byId = new Map<
+    string,
+    { name: string; channels: Map<ChannelType, AgentChannelStatus> }
+  >();
+
+  (sessions ?? []).forEach((session, index) => {
+    const id = session.agentId || `__row_${index}`;
+    let row = byId.get(id);
+    if (!row) {
+      row = {
+        name: session.agentName?.trim() || "Unknown agent",
+        channels: new Map(),
+      };
+      byId.set(id, row);
+    } else if (session.agentName?.trim() && row.name === "Unknown agent") {
+      row.name = session.agentName.trim();
+    }
+
+    for (const channel of channelsOf(session)) {
+      const type = mapChannel(channel.channelType);
+      const status = classifyChannelState(channel.currentState);
+      const next: AgentChannelStatus = {
+        channel: type,
+        status,
+        label: statusLabel(status, channel.currentState, channel.idleCodeName),
+      };
+      const prev = row.channels.get(type);
+      if (!prev || STATE_PRIORITY[status] > STATE_PRIORITY[prev.status]) {
+        row.channels.set(type, next);
+      }
+    }
+  });
+
+  return [...byId.entries()]
+    .map(([id, row]) => {
+      const channels = CHANNEL_ORDER.flatMap((type) => {
+        const channel = row.channels.get(type);
+        return channel ? [channel] : [];
+      });
+      return {
+        id,
+        name: row.name,
+        status: primaryState(channels.map((c) => c.status)),
+        channels,
+      };
+    })
+    .sort((a, b) => {
+      const byStatus = STATE_PRIORITY[b.status] - STATE_PRIORITY[a.status];
+      if (byStatus !== 0) return byStatus;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function mapAgentStates(agents: AgentRow[]): AgentStateCounts {
+  const counts = emptyAgentCounts();
+  for (const agent of agents) counts[agent.status] += 1;
+  return counts;
+}
+
+const AGENT_PAGE_CAP = 20;
+
+async function fetchActiveAgentSessions(
+  client: SearchClient,
+  from: number,
+  to: number,
+): Promise<AgentNode[]> {
+  const sessions: AgentNode[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < AGENT_PAGE_CAP; page++) {
+    const data = await client.query<{
+      agentSession: { agentSessions?: AgentNode[]; pageInfo?: PageInfo };
+    }>(agentStateQuery(from, to, cursor));
+    sessions.push(...(data.agentSession?.agentSessions ?? []));
+    const info = data.agentSession?.pageInfo;
+    if (!info?.hasNextPage || !info.endCursor) break;
+    cursor = info.endCursor;
+  }
+  return sessions;
 }
 
 function mapChannel(raw: string | undefined): ChannelType {
@@ -81,37 +256,6 @@ function mapChannel(raw: string | undefined): ChannelType {
   if (c.includes("email") || c.includes("mail")) return "email";
   if (c.includes("social")) return "social";
   return "other";
-}
-
-function mapAgentStates(rows: AggRow[]): AgentStateCounts {
-  const counts: AgentStateCounts = {
-    available: 0,
-    engaged: 0,
-    unavailable: 0,
-    wrapUp: 0,
-    loggedOut: 0,
-  };
-  for (const row of rows) {
-    const key = (row.key || "").toLowerCase();
-    const value = num(row.value);
-    if (key.includes("avail") || key.includes("idle") || key.includes("ready")) {
-      counts.available += value;
-    } else if (
-      key.includes("engag") ||
-      key.includes("talk") ||
-      key.includes("connected") ||
-      key.includes("busy")
-    ) {
-      counts.engaged += value;
-    } else if (key.includes("wrap") || key.includes("acw")) {
-      counts.wrapUp += value;
-    } else if (key.includes("logout") || key.includes("logged")) {
-      counts.loggedOut += value;
-    } else {
-      counts.unavailable += value;
-    }
-  }
-  return counts;
 }
 
 function parseKpis(rows: AggRow[]): Kpis {
@@ -176,7 +320,7 @@ export async function fetchLiveSnapshot(
 ): Promise<Omit<WallboardSnapshot, "stale" | "error" | "mock">> {
   const { from, to } = queryWindow();
 
-  const [kpiData, channelData, queueData, agentData] = await Promise.all([
+  const [kpiData, channelData, queueData, agentSessions] = await Promise.all([
     client.query<{ taskDetails: { tasks?: TaskNode[] } }>(taskKpiQuery(from, to)),
     client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
       channelMixQuery(from, to),
@@ -184,10 +328,10 @@ export async function fetchLiveSnapshot(
     client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
       queueStatsQuery(from, to),
     ),
-    client.query<{ agentSession: { agentSessions?: AgentNode[] } }>(
-      agentStateQuery(from, to),
-    ),
+    fetchActiveAgentSessions(client, from, to),
   ]);
+
+  const agents = mapAgents(agentSessions);
 
   return {
     title: config.wallboardTitle,
@@ -196,9 +340,8 @@ export async function fetchLiveSnapshot(
     queues: parseQueues(
       flattenTaskAggs(queueData.taskDetails?.tasks, (t) => t.lastQueue?.name),
     ),
-    agentStates: mapAgentStates(
-      flattenAgentAggs(agentData.agentSession?.agentSessions),
-    ),
+    agents,
+    agentStates: mapAgentStates(agents),
     channels: parseChannels(
       flattenTaskAggs(channelData.taskDetails?.tasks, (t) => t.channelType),
     ),
