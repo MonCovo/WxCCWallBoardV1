@@ -4,6 +4,7 @@ import {
   agentStateQuery,
   channelMixQuery,
   queueStatsQuery,
+  queueTotalsQuery,
   taskKpiQuery,
 } from "../queries/wallboardQueries.js";
 import type {
@@ -32,11 +33,20 @@ interface Aggregation {
   value?: number | string;
 }
 
+interface TaskActivityNode {
+  eventName?: string;
+  createdTime?: number | string;
+  isActive?: boolean;
+  queueName?: string;
+}
+
 interface TaskNode {
   channelType?: string;
   channelSubType?: string;
+  createdTime?: number | string;
   lastQueue?: { name?: string; id?: string };
   aggregation?: Aggregation | Aggregation[];
+  activities?: { nodes?: TaskActivityNode | TaskActivityNode[] };
 }
 
 interface ActivityNode {
@@ -395,17 +405,31 @@ function preferChannel(current: ChannelType, next: ChannelType): ChannelType {
   return rank[next] > rank[current] ? next : current;
 }
 
-function parseQueues(rows: AggRow[]): QueueRow[] {
+function parkedWaitSeconds(task: TaskNode, nowMs: number): number {
+  const parkedStarts = asList(task.activities?.nodes)
+    .filter((node) => (node.eventName || "").toLowerCase() === "parked")
+    .map((node) => toEpochMs(node.createdTime))
+    .filter((value): value is number => typeof value === "number");
+  const start =
+    parkedStarts.length > 0
+      ? Math.min(...parkedStarts)
+      : toEpochMs(task.createdTime);
+  if (!start) return 0;
+  return Math.max(0, Math.round((nowMs - start) / 1000));
+}
+
+function parseParkedQueues(tasks: TaskNode[] | undefined): QueueRow[] {
   type Acc = {
     name: string;
     channel: ChannelType;
     inQueue: number;
     longestWaitSeconds: number;
   };
+  const nowMs = Date.now();
   const byName = new Map<string, Acc>();
-  for (const row of rows) {
-    const name = row.key || "Unknown";
-    const channel = mapChannel(row.channelType, row.channelSubType, name);
+  for (const task of tasks ?? []) {
+    const name = task.lastQueue?.name?.trim() || "Unknown";
+    const channel = mapChannel(task.channelType, task.channelSubType, name);
     let acc = byName.get(name);
     if (!acc) {
       acc = { name, channel, inQueue: 0, longestWaitSeconds: 0 };
@@ -413,22 +437,98 @@ function parseQueues(rows: AggRow[]): QueueRow[] {
     } else {
       acc.channel = preferChannel(acc.channel, channel);
     }
-    if (row.name === "inQueue") acc.inQueue += num(row.value);
-    if (row.name === "longestWait") {
-      acc.longestWaitSeconds = Math.max(
-        acc.longestWaitSeconds,
-        Math.round(num(row.value) / 1000),
-      );
-    }
+    acc.inQueue += 1;
+    acc.longestWaitSeconds = Math.max(
+      acc.longestWaitSeconds,
+      parkedWaitSeconds(task, nowMs),
+    );
   }
   return [...byName.values()].map((q) => ({
     id: q.name,
     name: q.name,
     channel: q.channel,
+    offered: 0,
     inQueue: q.inQueue,
     longestWaitSeconds: q.longestWaitSeconds,
     serviceLevelPct: 0,
   }));
+}
+
+function parseQueueTotals(rows: AggRow[]): QueueRow[] {
+  type Acc = {
+    name: string;
+    channel: ChannelType;
+    offered: number;
+    answered: number;
+    withinSla: number;
+  };
+  const byName = new Map<string, Acc>();
+  for (const row of rows) {
+    const name = row.key?.trim();
+    if (!name) continue;
+    const channel = mapChannel(row.channelType, row.channelSubType, name);
+    let acc = byName.get(name);
+    if (!acc) {
+      acc = { name, channel, offered: 0, answered: 0, withinSla: 0 };
+      byName.set(name, acc);
+    } else {
+      acc.channel = preferChannel(acc.channel, channel);
+    }
+    if (row.name === "offered") acc.offered += num(row.value);
+    if (row.name === "answered") acc.answered += num(row.value);
+    if (row.name === "withinSla") acc.withinSla += num(row.value);
+  }
+  return [...byName.values()].map((q) => ({
+    id: q.name,
+    name: q.name,
+    channel: q.channel,
+    offered: q.offered,
+    inQueue: 0,
+    longestWaitSeconds: 0,
+    serviceLevelPct:
+      q.answered > 0 ? Math.round((q.withinSla / q.answered) * 1000) / 10 : 0,
+  }));
+}
+
+function mergeQueues(period: QueueRow[], parked: QueueRow[]): QueueRow[] {
+  const byName = new Map<string, QueueRow>();
+  for (const row of period) byName.set(row.name, { ...row });
+  for (const row of parked) {
+    const existing = byName.get(row.name);
+    if (existing) {
+      existing.inQueue = row.inQueue;
+      existing.longestWaitSeconds = row.longestWaitSeconds;
+      existing.channel = preferChannel(existing.channel, row.channel);
+    } else {
+      byName.set(row.name, { ...row });
+    }
+  }
+  return [...byName.values()].sort((a, b) => {
+    if (b.inQueue !== a.inQueue) return b.inQueue - a.inQueue;
+    if (b.offered !== a.offered) return b.offered - a.offered;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+const QUEUE_PAGE_CAP = 20;
+
+async function fetchParkedTasks(
+  client: SearchClient,
+  from: number,
+  to: number,
+): Promise<TaskNode[]> {
+  const tasks: TaskNode[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < QUEUE_PAGE_CAP; page++) {
+    const data = await client.query<{
+      taskDetails: { tasks?: TaskNode[]; pageInfo?: PageInfo };
+    }>(queueStatsQuery(from, to, cursor));
+    tasks.push(...(data.taskDetails?.tasks ?? []));
+    const info = data.taskDetails?.pageInfo;
+    if (!info?.hasNextPage || !info.endCursor) break;
+    cursor = info.endCursor;
+  }
+  return tasks;
 }
 
 function parseChannels(rows: AggRow[]): ChannelMixItem[] {
@@ -454,18 +554,20 @@ export async function fetchLiveSnapshot(
   const period = statsPeriod();
   const live = liveWindow();
 
-  const [kpiData, channelData, queueData, agentSessions] = await Promise.all([
-    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
-      taskKpiQuery(period.from, period.to),
-    ),
-    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
-      channelMixQuery(period.from, period.to),
-    ),
-    client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
-      queueStatsQuery(live.from, live.to),
-    ),
-    fetchActiveAgentSessions(client, live.from, live.to),
-  ]);
+  const [kpiData, channelData, queueTotals, parkedTasks, agentSessions] =
+    await Promise.all([
+      client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+        taskKpiQuery(period.from, period.to),
+      ),
+      client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+        channelMixQuery(period.from, period.to),
+      ),
+      client.query<{ taskDetails: { tasks?: TaskNode[] } }>(
+        queueTotalsQuery(period.from, period.to),
+      ),
+      fetchParkedTasks(client, live.from, live.to),
+      fetchActiveAgentSessions(client, live.from, live.to),
+    ]);
 
   const agents = mapAgents(agentSessions);
 
@@ -475,8 +577,11 @@ export async function fetchLiveSnapshot(
     generatedAt: new Date().toISOString(),
     period,
     kpis: parseKpis(flattenTaskAggs(kpiData.taskDetails?.tasks, () => undefined)),
-    queues: parseQueues(
-      flattenTaskAggs(queueData.taskDetails?.tasks, (t) => t.lastQueue?.name),
+    queues: mergeQueues(
+      parseQueueTotals(
+        flattenTaskAggs(queueTotals.taskDetails?.tasks, (t) => t.lastQueue?.name),
+      ),
+      parseParkedQueues(parkedTasks),
     ),
     agents,
     agentStates: mapAgentStates(agents),

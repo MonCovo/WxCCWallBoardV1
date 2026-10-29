@@ -1,4 +1,12 @@
-import { formatDuration, useClock, useFilterSelection, useNow, useSnapshot } from "./hooks";
+import { useRef, type CSSProperties } from "react";
+import {
+  formatDuration,
+  useClock,
+  useFilterSelection,
+  useNow,
+  useRosterLayout,
+  useSnapshot,
+} from "./hooks";
 import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
 import type {
   AgentAvailability,
@@ -116,7 +124,7 @@ function QueueTable({
   const options = queues.map((q) => ({ value: q.id, label: q.name }));
   const visible = applySelection(queues, selected, (q) => q.id);
   return (
-    <section className="panel" aria-label="Queues">
+    <section className="panel queue-panel" aria-label="Queues">
       <div className="panel-head">
         <h2>Queues</h2>
         <MultiSelectFilter
@@ -132,6 +140,7 @@ function QueueTable({
           <tr>
             <th>Queue</th>
             <th>Channel</th>
+            <th>Offered</th>
             <th>In queue</th>
             <th>Longest wait</th>
             <th>SL%</th>
@@ -140,7 +149,7 @@ function QueueTable({
         <tbody>
           {visible.length === 0 ? (
             <tr>
-              <td colSpan={5} className="empty">
+              <td colSpan={6} className="empty">
                 {queues.length === 0 ? "No queue activity" : "No queues selected"}
               </td>
             </tr>
@@ -149,6 +158,7 @@ function QueueTable({
               <tr key={q.id}>
                 <td>{q.name}</td>
                 <td>{channelLabel(q.channel)}</td>
+                <td>{q.offered}</td>
                 <td className={q.inQueue > 5 ? "warn" : ""}>{q.inQueue}</td>
                 <td className={q.longestWaitSeconds > 120 ? "bad" : ""}>
                   {formatDuration(q.longestWaitSeconds)}
@@ -202,11 +212,22 @@ function AgentRoster({
   emptyLabel: string;
 }) {
   const now = useNow();
+  const rosterRef = useRef<HTMLUListElement>(null);
+  const layout = useRosterLayout(rosterRef, agents.length);
   if (agents.length === 0) {
     return <p className="empty-agents">{emptyLabel}</p>;
   }
   return (
-    <ul className="agent-roster">
+    <ul
+      ref={rosterRef}
+      className={`agent-roster density-${layout.density}`}
+      style={
+        {
+          "--agent-cols": String(layout.cols),
+          "--agent-scale": String(layout.scale),
+        } as CSSProperties
+      }
+    >
       {agents.map((agent) => {
         const elapsed =
           agent.stateSince != null
@@ -238,7 +259,7 @@ function AgentRoster({
                   className={`channel-pill ${availabilityTone(ch.status)}`}
                 >
                   <span className={`channel-dot channel-${ch.channel}`} />
-                  {channelLabel(ch.channel)}
+                  <span className="channel-name">{channelLabel(ch.channel)}</span>
                   <span className="channel-status">{ch.label}</span>
                 </span>
               ))
@@ -343,16 +364,16 @@ export function App() {
       <Header snapshot={snapshot} clock={clock} />
       <KpiGrid snapshot={snapshot} />
       <div className="main-grid">
-        <QueueTable
-          queues={snapshot.queues}
-          selected={selectedQueues}
-          onChange={setSelectedQueues}
+        <AgentStates
+          agents={snapshot.agents ?? []}
+          selected={selectedTeams}
+          onChange={setSelectedTeams}
         />
         <div className="side-stack">
-          <AgentStates
-            agents={snapshot.agents ?? []}
-            selected={selectedTeams}
-            onChange={setSelectedTeams}
+          <QueueTable
+            queues={snapshot.queues}
+            selected={selectedQueues}
+            onChange={setSelectedQueues}
           />
           <ChannelMix snapshot={snapshot} />
         </div>

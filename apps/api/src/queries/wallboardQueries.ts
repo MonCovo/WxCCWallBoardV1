@@ -63,15 +63,25 @@ export function channelMixQuery(from: number, to: number): string {
 }`;
 }
 
-export function queueStatsQuery(from: number, to: number): string {
+export function queueTotalsQuery(from: number, to: number): string {
   return `{
   taskDetails(
     from: ${from}
     to: ${to}
-    filter: { isActive: { equals: true } }
     aggregations: [
-      { field: "id", type: count, name: "inQueue" }
-      { field: "lastQueue.duration", type: max, name: "longestWait" }
+      { field: "id", type: count, name: "offered" }
+      {
+        field: "id"
+        type: count
+        name: "answered"
+        filter: { isContactHandled: { equals: true } }
+      }
+      {
+        field: "id"
+        type: count
+        name: "withinSla"
+        filter: { isWithInServiceLevel: { equals: true } }
+      }
     ]
   ) {
     tasks {
@@ -84,6 +94,52 @@ export function queueStatsQuery(from: number, to: number): string {
         name
         value
       }
+    }
+  }
+}`;
+}
+
+export function queueStatsQuery(
+  from: number,
+  to: number,
+  cursor?: string,
+): string {
+  const pagination = cursor
+    ? `pagination: { cursor: ${JSON.stringify(cursor)} }`
+    : "";
+  // Parked = waiting in queue. lastQueue.duration stays 0 until the contact
+  // leaves queue, so wait is computed from parked activity / createdTime.
+  return `{
+  taskDetails(
+    from: ${from}
+    to: ${to}
+    filter: {
+      and: [
+        { isActive: { equals: true } }
+        { status: { equals: "parked" } }
+      ]
+    }
+    ${pagination}
+  ) {
+    tasks {
+      lastQueue {
+        name
+      }
+      channelType
+      channelSubType
+      createdTime
+      activities {
+        nodes {
+          eventName
+          createdTime
+          isActive
+          queueName
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
     }
   }
 }`;

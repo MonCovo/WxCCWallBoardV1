@@ -13,6 +13,7 @@ export interface QueueRow {
   id: string;
   name: string;
   channel: ChannelType;
+  offered: number;
   inQueue: number;
   longestWaitSeconds: number;
   serviceLevelPct: number;

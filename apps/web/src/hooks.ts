@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import type { RefObject } from "react";
 import type { WallboardSnapshot } from "./types";
 
 /** null means show all items; an array is an explicit multi-select (may be empty). */
@@ -97,6 +98,81 @@ export function useClock(timeZone?: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+export type RosterDensity = "full" | "compact" | "dense";
+
+export interface RosterLayout {
+  cols: number;
+  scale: number;
+  density: RosterDensity;
+}
+
+const ROSTER_GAP = 8;
+const ROSTER_MIN_WIDTH = 240;
+const ROSTER_REF_HEIGHT = 92;
+
+export function computeRosterLayout(
+  count: number,
+  width: number,
+  height: number,
+): RosterLayout {
+  if (count <= 0 || width <= 0 || height <= 0) {
+    return { cols: 1, scale: 1, density: "full" };
+  }
+
+  let best = { cols: 1, cardW: width, cardH: 0, score: -Infinity };
+  const maxCols = Math.min(
+    count,
+    Math.max(1, Math.floor((width + ROSTER_GAP) / (ROSTER_MIN_WIDTH + ROSTER_GAP))),
+  );
+
+  for (let cols = 1; cols <= maxCols; cols++) {
+    const rows = Math.ceil(count / cols);
+    const cardW = (width - ROSTER_GAP * (cols - 1)) / cols;
+    const cardH = (height - ROSTER_GAP * (rows - 1)) / rows;
+    if (cardW < 1 || cardH < 1) continue;
+    const unused = cols * rows - count;
+    const heightScore = Math.min(cardH / 70, 1.15);
+    const widthScore = Math.min(cardW / 320, 1.1);
+    const score = heightScore * widthScore * cardW * cardH - unused * 400;
+    if (score > best.score) best = { cols, cardW, cardH, score };
+  }
+
+  const scale = Math.max(0.55, Math.min(1, best.cardH / ROSTER_REF_HEIGHT));
+  const density: RosterDensity =
+    best.cardH >= 76 && best.cardW >= 280
+      ? "full"
+      : best.cardH >= 48 && best.cardW >= 200
+        ? "compact"
+        : "dense";
+  return { cols: best.cols, scale, density };
+}
+
+export function useRosterLayout(
+  ref: RefObject<HTMLElement | null>,
+  count: number,
+): RosterLayout {
+  const [layout, setLayout] = useState<RosterLayout>({
+    cols: 1,
+    scale: 1,
+    density: "full",
+  });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const measure = () => {
+      setLayout(computeRosterLayout(count, el.clientWidth, el.clientHeight));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [count, ref]);
+
+  return layout;
 }
 
 export function formatDuration(totalSeconds: number): string {
