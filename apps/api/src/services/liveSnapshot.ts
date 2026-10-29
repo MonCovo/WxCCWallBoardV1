@@ -371,6 +371,11 @@ function mapChannel(...parts: Array<string | undefined>): ChannelType {
   return "other";
 }
 
+function toServiceLevelPct(withinSla: number, answered: number): number {
+  if (answered <= 0) return 0;
+  return Math.min(100, Math.round((withinSla / answered) * 1000) / 10);
+}
+
 function parseKpis(rows: AggRow[]): Kpis {
   const byName = Object.fromEntries(
     rows.filter((r) => r.name).map((r) => [r.name!, num(r.value)]),
@@ -379,8 +384,6 @@ function parseKpis(rows: AggRow[]): Kpis {
   const answered = byName.answered ?? 0;
   const abandoned = byName.abandoned ?? 0;
   const withinSla = byName.withinSla ?? 0;
-  const serviceLevelPct =
-    answered > 0 ? Math.round((withinSla / answered) * 1000) / 10 : 0;
   // durations from Search are typically ms
   const asaSeconds = Math.round(num(byName.asa) / 1000);
   const ahtSeconds = Math.round(num(byName.aht) / 1000);
@@ -388,7 +391,7 @@ function parseKpis(rows: AggRow[]): Kpis {
     offered,
     answered,
     abandoned,
-    serviceLevelPct,
+    serviceLevelPct: toServiceLevelPct(withinSla, answered),
     asaSeconds,
     ahtSeconds,
   };
@@ -485,8 +488,7 @@ function parseQueueTotals(rows: AggRow[]): QueueRow[] {
     offered: q.offered,
     inQueue: 0,
     longestWaitSeconds: 0,
-    serviceLevelPct:
-      q.answered > 0 ? Math.round((q.withinSla / q.answered) * 1000) / 10 : 0,
+    serviceLevelPct: toServiceLevelPct(q.withinSla, q.answered),
   }));
 }
 

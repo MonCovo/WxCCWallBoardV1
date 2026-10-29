@@ -26,7 +26,12 @@ export function taskKpiQuery(from: number, to: number): string {
         field: "id"
         type: count
         name: "withinSla"
-        filter: { isWithInServiceLevel: { equals: true } }
+        filter: {
+          and: [
+            { isWithInServiceLevel: { equals: true } }
+            { isContactHandled: { equals: true } }
+          ]
+        }
       }
       { field: "ringingDuration", type: average, name: "asa" }
       { field: "connectedDuration", type: average, name: "aht" }
@@ -80,7 +85,12 @@ export function queueTotalsQuery(from: number, to: number): string {
         field: "id"
         type: count
         name: "withinSla"
-        filter: { isWithInServiceLevel: { equals: true } }
+        filter: {
+          and: [
+            { isWithInServiceLevel: { equals: true } }
+            { isContactHandled: { equals: true } }
+          ]
+        }
       }
     ]
   ) {
