@@ -1,6 +1,31 @@
-import type { WallboardSnapshot } from "../types.js";
+import type { ChannelType, QueueRow, WallboardSnapshot } from "../types.js";
 import { config } from "../config.js";
 import { statsPeriod } from "../util/timeWindow.js";
+
+function mockQueue(
+  id: string,
+  name: string,
+  channel: ChannelType,
+  offered: number,
+  serviceLevelPct: number,
+  inQueue: number,
+  longestWaitSeconds: number,
+): QueueRow {
+  const answered = Math.max(0, Math.round(offered * 0.9));
+  const sl = Math.min(100, Math.max(0, serviceLevelPct));
+  const withinSla = Math.max(0, Math.round((answered * sl) / 100));
+  return {
+    id,
+    name,
+    channel,
+    offered,
+    answered,
+    withinSla,
+    inQueue: Math.max(0, inQueue),
+    longestWaitSeconds: Math.max(0, longestWaitSeconds),
+    serviceLevelPct: answered > 0 ? Math.round((withinSla / answered) * 1000) / 10 : 0,
+  };
+}
 
 /** Deterministic-ish mock that wobbles slightly and grows through the stats period. */
 export function buildMockSnapshot(): WallboardSnapshot {
@@ -27,51 +52,11 @@ export function buildMockSnapshot(): WallboardSnapshot {
       ahtSeconds: Math.max(60, wobble(312, 20)),
     },
     queues: [
-      {
-        id: "q-sales",
-        name: "Sales",
-        channel: "telephony",
-        offered: grow(86, 4),
-        inQueue: Math.max(0, wobble(4, 2)),
-        longestWaitSeconds: Math.max(0, wobble(95, 30)),
-        serviceLevelPct: wobble(88, 5),
-      },
-      {
-        id: "q-support",
-        name: "Support",
-        channel: "telephony",
-        offered: grow(102, 5),
-        inQueue: Math.max(0, wobble(7, 3)),
-        longestWaitSeconds: Math.max(0, wobble(140, 40)),
-        serviceLevelPct: wobble(79, 6),
-      },
-      {
-        id: "q-chat",
-        name: "Web Chat",
-        channel: "chat",
-        offered: grow(31, 3),
-        inQueue: Math.max(0, wobble(3, 2)),
-        longestWaitSeconds: Math.max(0, wobble(45, 15)),
-        serviceLevelPct: wobble(92, 3),
-      },
-      {
-        id: "q-email",
-        name: "Email",
-        channel: "email",
-        offered: grow(18, 2),
-        inQueue: Math.max(0, wobble(12, 4)),
-        longestWaitSeconds: Math.max(0, wobble(1800, 200)),
-        serviceLevelPct: wobble(74, 5),
-      },
-      {
-        id: "q-whatsapp",
-        name: "WhatsApp",
-        channel: "social",
-        offered: grow(11, 2),
-        inQueue: Math.max(0, wobble(2, 2)),
-        longestWaitSeconds: Math.max(0, wobble(90, 25)),
-        serviceLevelPct: wobble(91, 4),
-      },
+      mockQueue("q-sales", "Sales", "telephony", grow(86, 4), wobble(88, 5), wobble(4, 2), wobble(95, 30)),
+      mockQueue("q-support", "Support", "telephony", grow(102, 5), wobble(79, 6), wobble(7, 3), wobble(140, 40)),
+      mockQueue("q-chat", "Web Chat", "chat", grow(31, 3), wobble(92, 3), wobble(3, 2), wobble(45, 15)),
+      mockQueue("q-email", "Email", "email", grow(18, 2), wobble(74, 5), wobble(12, 4), wobble(1800, 200)),
+      mockQueue("q-whatsapp", "WhatsApp", "social", grow(11, 2), wobble(91, 4), wobble(2, 2), wobble(90, 25)),
     ],
     agents: [
       {

@@ -14,6 +14,8 @@ export interface QueueRow {
   name: string;
   channel: ChannelType;
   offered: number;
+  answered: number;
+  withinSla: number;
   inQueue: number;
   longestWaitSeconds: number;
   serviceLevelPct: number;

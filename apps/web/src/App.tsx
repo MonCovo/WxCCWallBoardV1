@@ -6,6 +6,7 @@ import {
   useNow,
   useRosterLayout,
   useSnapshot,
+  type FilterSelection,
 } from "./hooks";
 import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
 import type {
@@ -21,6 +22,24 @@ function slaClass(pct: number): string {
   if (pct >= 85) return "ok";
   if (pct >= 70) return "warn";
   return "bad";
+}
+
+function toServiceLevelPct(withinSla: number, answered: number): number {
+  if (answered <= 0) return 0;
+  return Math.min(100, Math.round((withinSla / answered) * 1000) / 10);
+}
+
+/** When queues are filtered, recompute SL from selected rows; "All" keeps org-wide KPI. */
+function serviceLevelForSelection(
+  queues: QueueRow[],
+  selected: FilterSelection,
+  fallbackPct: number,
+): number {
+  if (selected === null) return fallbackPct;
+  const visible = applySelection(queues, selected, (q) => q.id);
+  const answered = visible.reduce((sum, q) => sum + (q.answered ?? 0), 0);
+  const withinSla = visible.reduce((sum, q) => sum + (q.withinSla ?? 0), 0);
+  return toServiceLevelPct(withinSla, answered);
 }
 
 function channelLabel(c: ChannelType): string {
@@ -74,16 +93,27 @@ function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: strin
   );
 }
 
-function KpiGrid({ snapshot }: { snapshot: WallboardSnapshot }) {
+function KpiGrid({
+  snapshot,
+  selectedQueues,
+}: {
+  snapshot: WallboardSnapshot;
+  selectedQueues: FilterSelection;
+}) {
   const { kpis } = snapshot;
+  const serviceLevelPct = serviceLevelForSelection(
+    snapshot.queues,
+    selectedQueues,
+    kpis.serviceLevelPct,
+  );
   const items = [
     { label: "Offered", value: String(kpis.offered) },
     { label: "Answered", value: String(kpis.answered) },
     { label: "Abandoned", value: String(kpis.abandoned) },
     {
       label: "Service Level",
-      value: `${kpis.serviceLevelPct}%`,
-      tone: slaClass(kpis.serviceLevelPct),
+      value: `${serviceLevelPct}%`,
+      tone: slaClass(serviceLevelPct),
     },
     { label: "ASA", value: formatDuration(kpis.asaSeconds) },
     { label: "AHT", value: formatDuration(kpis.ahtSeconds) },
@@ -362,7 +392,7 @@ export function App() {
   return (
     <div className="wallboard">
       <Header snapshot={snapshot} clock={clock} />
-      <KpiGrid snapshot={snapshot} />
+      <KpiGrid snapshot={snapshot} selectedQueues={selectedQueues} />
       <div className="main-grid">
         <AgentStates
           agents={snapshot.agents ?? []}
