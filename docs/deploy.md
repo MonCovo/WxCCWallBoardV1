@@ -7,7 +7,7 @@ Repeatable path for a **single-tenant** deployment: host the app, create a Servi
 Repo: https://github.com/MonCovo/WxCCWallBoard (or your fork).
 
 ```bash
-git clone https://github.com/MonCovo/WxCCWallBoard.git
+git clone https://github.com/MonCovo/WxCCWallBoardV1.git
 cd WxCCWallBoard
 ```
 
