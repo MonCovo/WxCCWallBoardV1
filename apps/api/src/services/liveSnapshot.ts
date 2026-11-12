@@ -580,6 +580,7 @@ export async function fetchLiveSnapshot(
   return {
     title: config.wallboardTitle,
     logoUrl: config.wallboardLogoUrl,
+    watermark: config.wallboardWatermark,
     generatedAt: new Date().toISOString(),
     period,
     kpis: parseKpis(flattenTaskAggs(kpiData.taskDetails?.tasks, () => undefined)),

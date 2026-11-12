@@ -29,6 +29,9 @@ export const config = {
   wallboardLogoUrl:
     (process.env.WALLBOARD_LOGO_URL ||
       "https://www.n4cdn.com/node4-logos-2024/Node4-Icon-full-colour-Large.png").trim(),
+  wallboardWatermark:
+    (process.env.WALLBOARD_WATERMARK ||
+      "Community-developed open-source software • Provided as-is without official support").trim(),
   snapshotIntervalMs: int(process.env.SNAPSHOT_INTERVAL_MS, 30_000),
   displayKey: process.env.DISPLAY_KEY?.trim() || "",
   orgTimezone: process.env.ORG_TIMEZONE || "UTC",

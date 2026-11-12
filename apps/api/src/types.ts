@@ -70,6 +70,7 @@ export interface StatsPeriod {
 export interface WallboardSnapshot {
   title: string;
   logoUrl: string;
+  watermark: string;
   generatedAt: string;
   stale: boolean;
   error?: string;

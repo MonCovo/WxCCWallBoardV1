@@ -87,7 +87,12 @@ function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: strin
       </div>
       <div className="header-right">
         <span className={`badge ${health}`}>{snapshot.stale ? "STALE" : "LIVE"}</span>
-        <time className="clock">{clock}</time>
+        <div className="header-clock">
+          {snapshot.watermark ? (
+            <span className="watermark">{snapshot.watermark}</span>
+          ) : null}
+          <time className="clock">{clock}</time>
+        </div>
       </div>
     </header>
   );
