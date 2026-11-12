@@ -1,5 +1,7 @@
 # WxCC Wallboard
 
+Community-developed open-source software • Provided as-is without official support
+
 Single-tenant Webex Contact Center TV wallboard. Server-side **Service App** auth, GraphQL Search snapshots, secrets never in the browser.
 
 ## Quick start (local IDE / demo)
