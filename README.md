@@ -20,6 +20,9 @@ npm run dev:mock
 
 For live data, set `MOCK_DATA=false` and fill Service App env vars in `.env` (see [docs/deploy.md](docs/deploy.md)).
 
+<img width="3840" height="2160" alt="image" src="https://github.com/user-attachments/assets/5b769aaf-7044-4c62-9220-5f8995dcc699" />
+
+
 ## Scripts
 
 | Command | Purpose |
