@@ -1,4 +1,8 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  AlertChip,
+  ThemeProvider,
+} from "@momentum-design/components/react";
 import {
   formatDuration,
   useClock,
@@ -7,29 +11,54 @@ import {
   useQueueThresholds,
   useRosterLayout,
   useSnapshot,
+  useWallboardTheme,
   type FilterSelection,
 } from "./hooks";
 import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
+import { ThemePicker } from "./ThemePicker";
 import { ThresholdSettings } from "./ThresholdSettings";
 import {
   toneClass,
+  toneCueLabel,
   tonesForQueue,
   worstTone,
 } from "./thresholds";
+import type { WallboardThemeId } from "./themes";
 import type {
   AgentAvailability,
   AgentRow,
   AgentStateCounts,
+  AlertTone,
   ChannelType,
   QueueRow,
   QueueThresholdConfig,
   WallboardSnapshot,
 } from "./types";
 
-function slaClass(pct: number): string {
-  if (pct >= 85) return "ok";
-  if (pct >= 70) return "warn";
-  return "bad";
+function slaClass(pct: number): AlertTone {
+  if (pct >= 85) return "success";
+  if (pct >= 70) return "warning";
+  return "error";
+}
+
+function MetricCell({
+  tone,
+  children,
+}: {
+  tone: AlertTone;
+  children: ReactNode;
+}) {
+  const cue = toneCueLabel(tone);
+  return (
+    <td className={`metric-cell ${toneClass(tone)}`.trim()}>
+      <span className="metric-value">{children}</span>
+      {cue ? (
+        <span className="metric-cue" aria-label={cue === "Crit" ? "Critical" : "Warning"}>
+          {cue}
+        </span>
+      ) : null}
+    </td>
+  );
 }
 
 function toServiceLevelPct(withinSla: number, answered: number): number {
@@ -65,12 +94,31 @@ function channelLabel(c: ChannelType): string {
   }
 }
 
-function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: string }) {
+function Header({
+  snapshot,
+  clock,
+  paused,
+  onToggleLive,
+  themeId,
+  onThemeChange,
+}: {
+  snapshot: WallboardSnapshot;
+  clock: string;
+  paused: boolean;
+  onToggleLive: () => void;
+  themeId: WallboardThemeId;
+  onThemeChange: (next: WallboardThemeId) => void;
+}) {
   const tz = snapshot.period?.timezone;
   const updated = new Date(snapshot.generatedAt).toLocaleTimeString(undefined, {
     timeZone: tz,
   });
-  const health = snapshot.stale ? "stale" : "live";
+  const label = paused ? "PAUSED" : snapshot.stale ? "STALE" : "LIVE";
+  const chipVariant = paused
+    ? "warning"
+    : snapshot.stale
+      ? "error"
+      : "success";
   const period = snapshot.period?.label;
   return (
     <header className="header">
@@ -90,17 +138,26 @@ function Header({ snapshot, clock }: { snapshot: WallboardSnapshot; clock: strin
             {period ? ` · ${period}` : ""}
             {snapshot.mock ? " · MOCK" : ""}
             {snapshot.error ? ` · ${snapshot.error}` : ""}
+            {paused ? " · updates paused" : ""}
           </p>
         </div>
       </div>
       <div className="header-right">
-        <span className={`badge ${health}`}>{snapshot.stale ? "STALE" : "LIVE"}</span>
-        <div className="header-clock">
-          {snapshot.watermark ? (
-            <span className="watermark">{snapshot.watermark}</span>
-          ) : null}
+        <div className="header-controls">
+          <ThemePicker value={themeId} onChange={onThemeChange} />
+          <AlertChip
+            variant={chipVariant}
+            label={label}
+            onClick={onToggleLive}
+            aria-pressed={paused}
+            aria-label={paused ? "Resume live updates" : "Pause live updates"}
+            title={paused ? "Resume live updates" : "Pause live updates"}
+          />
           <time className="clock">{clock}</time>
         </div>
+        {snapshot.watermark ? (
+          <span className="watermark">{snapshot.watermark}</span>
+        ) : null}
       </div>
     </header>
   );
@@ -217,32 +274,20 @@ function QueueTable({
                 tones.serviceLevelPct,
               );
               const rowAlert =
-                rowTone === "warn" || rowTone === "bad" ? rowTone : "";
+                rowTone === "warning" || rowTone === "error" ? rowTone : "";
               const rowClass = ["queue-row", rowAlert].filter(Boolean).join(" ");
               return (
                 <tr key={q.id} className={rowClass}>
                   <td>{q.name}</td>
                   <td>{channelLabel(q.channel)}</td>
-                  <td
-                    className={`metric-cell ${toneClass(tones.offered)}`.trim()}
-                  >
-                    {q.offered}
-                  </td>
-                  <td
-                    className={`metric-cell ${toneClass(tones.inQueue)}`.trim()}
-                  >
-                    {q.inQueue}
-                  </td>
-                  <td
-                    className={`metric-cell ${toneClass(tones.longestWaitSeconds)}`.trim()}
-                  >
+                  <MetricCell tone={tones.offered}>{q.offered}</MetricCell>
+                  <MetricCell tone={tones.inQueue}>{q.inQueue}</MetricCell>
+                  <MetricCell tone={tones.longestWaitSeconds}>
                     {formatDuration(q.longestWaitSeconds)}
-                  </td>
-                  <td
-                    className={`metric-cell ${toneClass(tones.serviceLevelPct)}`.trim()}
-                  >
+                  </MetricCell>
+                  <MetricCell tone={tones.serviceLevelPct}>
                     {q.serviceLevelPct > 0 ? `${q.serviceLevelPct}%` : "—"}
-                  </td>
+                  </MetricCell>
                 </tr>
               );
             })
@@ -256,12 +301,12 @@ function QueueTable({
 function availabilityTone(status: AgentAvailability): string {
   switch (status) {
     case "available":
-      return "ok";
+      return "success";
     case "engaged":
       return "engaged";
     case "wrapUp":
     case "unavailable":
-      return "warn";
+      return "warning";
     default:
       return "";
   }
@@ -323,8 +368,14 @@ function AgentRoster({
               </span>
               <span className="agent-team">{agent.team}</span>
             </div>
-            <span className={`agent-primary ${availabilityTone(agent.status)}`}>
-              {availabilityLabel(agent.status)}
+            <span className="agent-status">
+              <span
+                className={`presence-dot ${availabilityTone(agent.status)}`}
+                aria-hidden="true"
+              />
+              <span className={`agent-primary ${availabilityTone(agent.status)}`}>
+                {availabilityLabel(agent.status)}
+              </span>
             </span>
           </div>
           <div className="agent-channels">
@@ -365,10 +416,10 @@ function AgentStates({
   const visible = applySelection(agents, selected, (a) => a.team);
   const a = countAgentStates(visible);
   const rows = [
-    { label: "Available", value: a.available, tone: "ok" },
+    { label: "Available", value: a.available, tone: "success" },
     { label: "Engaged", value: a.engaged, tone: "engaged" },
-    { label: "Wrap-up", value: a.wrapUp, tone: "warn" },
-    { label: "Unavailable", value: a.unavailable, tone: "warn" },
+    { label: "Wrap-up", value: a.wrapUp, tone: "warning" },
+    { label: "Unavailable", value: a.unavailable, tone: "warning" },
   ];
   return (
     <section className="panel agent-panel" aria-label="Agent states">
@@ -424,25 +475,29 @@ function ChannelMix({ snapshot }: { snapshot: WallboardSnapshot }) {
 }
 
 export function App() {
-  const { snapshot, error } = useSnapshot(5000);
+  const { snapshot, error, paused, togglePaused } = useSnapshot(5000);
   const clock = useClock(snapshot?.period?.timezone);
   const [selectedTeams, setSelectedTeams] = useFilterSelection("wallboard.teams");
   const [selectedQueues, setSelectedQueues] = useFilterSelection("wallboard.queues");
   const [queueThresholds, setQueueThresholds] = useQueueThresholds(
     "wallboard.queueThresholds",
   );
+  const [theme, setTheme] = useWallboardTheme("wallboard.theme");
 
-  if (!snapshot) {
-    return (
-      <div className="boot">
-        <p>{error ? `Cannot reach API: ${error}` : "Loading wallboard…"}</p>
-      </div>
-    );
-  }
-
-  return (
+  const body = !snapshot ? (
+    <div className="boot">
+      <p>{error ? `Cannot reach API: ${error}` : "Loading wallboard…"}</p>
+    </div>
+  ) : (
     <div className="wallboard">
-      <Header snapshot={snapshot} clock={clock} />
+      <Header
+        snapshot={snapshot}
+        clock={clock}
+        paused={paused}
+        onToggleLive={togglePaused}
+        themeId={theme.id}
+        onThemeChange={setTheme}
+      />
       <KpiGrid snapshot={snapshot} selectedQueues={selectedQueues} />
       <div className="main-grid">
         <AgentStates
@@ -462,5 +517,9 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <ThemeProvider themeclass={theme.themeclass}>{body}</ThemeProvider>
   );
 }

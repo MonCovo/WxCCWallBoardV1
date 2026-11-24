@@ -21,7 +21,8 @@ export interface QueueRow {
   serviceLevelPct: number;
 }
 
-export type AlertTone = "ok" | "warn" | "bad" | "none";
+/** Display/CSS sentiment aligned with Momentum text.success|warning|error. */
+export type AlertTone = "success" | "warning" | "error" | "none";
 
 export type QueueMetric =
   | "offered"

@@ -115,22 +115,22 @@ export function toneForMetric(
   if (warn == null && bad == null) return "none";
 
   if (direction === "higherIsWorse") {
-    if (bad != null && value >= bad) return "bad";
-    if (warn != null && value >= warn) return "warn";
-    return "ok";
+    if (bad != null && value >= bad) return "error";
+    if (warn != null && value >= warn) return "warning";
+    return "success";
   }
 
   // lowerIsWorse (SL%)
-  if (bad != null && value < bad) return "bad";
-  if (warn != null && value < warn) return "warn";
-  return "ok";
+  if (bad != null && value < bad) return "error";
+  if (warn != null && value < warn) return "warning";
+  return "success";
 }
 
 const TONE_RANK: Record<AlertTone, number> = {
   none: 0,
-  ok: 1,
-  warn: 2,
-  bad: 3,
+  success: 1,
+  warning: 2,
+  error: 3,
 };
 
 export function worstTone(...tones: AlertTone[]): AlertTone {
@@ -162,6 +162,12 @@ export function tonesForQueue(
 
 export function toneClass(tone: AlertTone): string {
   return tone === "none" ? "" : tone;
+}
+
+export function toneCueLabel(tone: AlertTone): string | null {
+  if (tone === "warning") return "Warn";
+  if (tone === "error") return "Crit";
+  return null;
 }
 
 export function hasQueueOverride(

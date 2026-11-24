@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button, Option, Select } from "@momentum-design/components/react";
 import {
   clearQueueOverride,
   ensureQueueOverride,
@@ -10,6 +11,9 @@ import {
   setQueueOverride,
 } from "./thresholds";
 import type { MetricThreshold, QueueThresholdConfig } from "./types";
+
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), mdc-button, mdc-select';
 
 function parseBound(raw: string): number | null {
   const trimmed = raw.trim();
@@ -30,7 +34,7 @@ function ThresholdInputs({
   return (
     <div className="threshold-inputs">
       <label className="threshold-field">
-        <span>Warn</span>
+        <span>Warning</span>
         <input
           type="number"
           inputMode="decimal"
@@ -42,7 +46,7 @@ function ThresholdInputs({
         />
       </label>
       <label className="threshold-field">
-        <span>Bad</span>
+        <span>Error</span>
         <input
           type="number"
           inputMode="decimal"
@@ -88,7 +92,6 @@ function MetricRows({
 
           const updateMetric = (next: MetricThreshold) => {
             if (queueId) {
-              // Typing into the fields creates an override from the resolved values.
               onChange(setQueueOverride(config, queueId, metric, next));
             } else {
               onChange(setDefaultThreshold(config, metric, next));
@@ -113,25 +116,25 @@ function MetricRows({
               {queueId ? (
                 <td>
                   {overridden ? (
-                    <button
-                      type="button"
-                      className="threshold-clear"
+                    <Button
+                      variant="tertiary"
+                      size={24}
                       onClick={() =>
                         onChange(clearQueueOverride(config, queueId, metric))
                       }
                     >
                       Clear
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      type="button"
-                      className="threshold-clear"
+                    <Button
+                      variant="tertiary"
+                      size={24}
                       onClick={() =>
                         onChange(ensureQueueOverride(config, queueId, metric))
                       }
                     >
                       Override
-                    </button>
+                    </Button>
                   )}
                 </td>
               ) : null}
@@ -155,14 +158,56 @@ export function ThresholdSettings({
   const [open, setOpen] = useState(false);
   const [queueId, setQueueId] = useState<string>("");
   const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descId = useId();
+  const dialogId = useId();
 
   useEffect(() => {
     if (!open) return;
+    const dialog = dialogRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    document.body.classList.add("dialog-open");
+
+    const focusables = () =>
+      dialog
+        ? ([...dialog.querySelectorAll(FOCUSABLE)] as HTMLElement[])
+        : [];
+
+    const initial =
+      focusables().find((el) => el.tagName === "INPUT" || el.tagName === "SELECT") ??
+      focusables()[0];
+    initial?.focus();
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.classList.remove("dialog-open");
+      const trigger = document.getElementById("wallboard-threshold-trigger") as
+        | HTMLElement
+        | null;
+      (trigger ?? previouslyFocused)?.focus?.();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -174,16 +219,14 @@ export function ThresholdSettings({
 
   return (
     <div className="threshold-settings">
-      <button
-        type="button"
-        className={`filter-toggle${open ? " active" : ""}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label="Queue threshold settings"
-        onClick={() => setOpen((v) => !v)}
+      <Button
+        id="wallboard-threshold-trigger"
+        variant="secondary"
+        size={28}
+        onClick={() => setOpen(true)}
       >
-        <span className="filter-toggle-label">Thresholds</span>
-      </button>
+        Thresholds
+      </Button>
       {open ? (
         <div
           className="threshold-backdrop"
@@ -192,85 +235,94 @@ export function ThresholdSettings({
           }}
         >
           <div
+            id={dialogId}
             className="threshold-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label="Queue threshold alerts"
+            aria-labelledby={titleId}
+            aria-describedby={descId}
             ref={dialogRef}
           >
             <div className="threshold-dialog-head">
-              <h3>Queue thresholds</h3>
-              <button
-                type="button"
-                className="threshold-close"
-                aria-label="Close threshold settings"
+              <h3 id={titleId}>Queue thresholds</h3>
+              <Button
+                variant="tertiary"
+                size={28}
                 onClick={() => setOpen(false)}
               >
                 Close
-              </button>
+              </Button>
             </div>
-            <p className="threshold-help">
-              Traffic-light alerts per metric. Leave blank to disable a band.
-              SL% uses lower-is-worse; other metrics use higher-is-worse.
+            <p className="threshold-help" id={descId}>
+              Success / warning / error bands per metric. Leave blank to
+              disable a band. SL% uses lower-is-worse; other metrics use
+              higher-is-worse.
             </p>
 
-            <section className="threshold-section">
-              <h4>Global defaults</h4>
-              <MetricRows config={config} onChange={onChange} />
-            </section>
+            <div className="threshold-dialog-body">
+              <section className="threshold-section">
+                <h4>Global defaults</h4>
+                <MetricRows config={config} onChange={onChange} />
+              </section>
 
-            <section className="threshold-section">
-              <div className="threshold-section-head">
-                <h4>Per-queue overrides</h4>
-                <select
-                  className="threshold-queue-select"
-                  value={queueId}
-                  onChange={(e) => setQueueId(e.target.value)}
-                  aria-label="Queue for overrides"
-                >
-                  <option value="">Select queue…</option>
-                  {queues.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {q.name}
-                      {hasQueueOverride(config, q.id) ? " *" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {queueId ? (
-                <>
-                  <MetricRows
-                    config={config}
-                    queueId={queueId}
-                    onChange={onChange}
-                  />
-                  {hasQueueOverride(config, queueId) ? (
-                    <button
-                      type="button"
-                      className="threshold-clear-all"
-                      onClick={() =>
-                        onChange(clearQueueOverride(config, queueId))
-                      }
-                    >
-                      Clear all overrides for this queue
-                    </button>
-                  ) : null}
-                </>
-              ) : (
-                <p className="threshold-empty">
-                  Pick a queue to set overrides on top of the defaults.
-                </p>
-              )}
-            </section>
+              <section className="threshold-section">
+                <div className="threshold-section-head">
+                  <h4>Per-queue overrides</h4>
+                  <Select
+                    className="threshold-queue-select"
+                    value={queueId}
+                    data-aria-label="Queue for overrides"
+                    placeholder="Select queue…"
+                    onChange={(event) => {
+                      const next = event.detail.value;
+                      setQueueId(typeof next === "string" ? next : "");
+                    }}
+                  >
+                    <Option value="" label="Select queue…" />
+                    {queues.map((q) => (
+                      <Option
+                        key={q.id}
+                        value={q.id}
+                        label={`${q.name}${hasQueueOverride(config, q.id) ? " *" : ""}`}
+                      />
+                    ))}
+                  </Select>
+                </div>
+                {queueId ? (
+                  <>
+                    <MetricRows
+                      config={config}
+                      queueId={queueId}
+                      onChange={onChange}
+                    />
+                    {hasQueueOverride(config, queueId) ? (
+                      <Button
+                        variant="tertiary"
+                        size={28}
+                        onClick={() =>
+                          onChange(clearQueueOverride(config, queueId))
+                        }
+                      >
+                        Clear all overrides for this queue
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="threshold-empty">
+                    Pick a queue to set overrides on top of the defaults.
+                  </p>
+                )}
+              </section>
+            </div>
 
             <div className="threshold-dialog-foot">
-              <button
-                type="button"
-                className="threshold-done"
+              <Button
+                variant="primary"
+                size={32}
                 onClick={() => setOpen(false)}
               >
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </div>
