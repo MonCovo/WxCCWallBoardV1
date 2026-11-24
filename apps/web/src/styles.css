@@ -171,8 +171,51 @@ body {
   height: 100%;
   display: grid;
   place-items: center;
-  font-size: 1.5rem;
+  padding: var(--pad-v-xl) var(--pad-h-xl);
   color: var(--muted);
+}
+
+.boot-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 1.5rem;
+}
+
+.boot-loading p {
+  margin: 0;
+}
+
+.wallboard-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  --mdc-emptystate-max-width: 22rem;
+  --mdc-emptystate-text-align: center;
+  --mdc-emptystate-align-items: center;
+}
+
+.wallboard-empty.boot-empty {
+  --mdc-emptystate-max-width: 28rem;
+  --mdc-emptystate-illustration-size: 12rem;
+}
+
+.wallboard-empty.agent-empty {
+  flex: 1;
+  margin-top: var(--space-md);
+  --mdc-emptystate-illustration-size: 10rem;
+}
+
+.wallboard-empty.queue-empty,
+.wallboard-empty.channel-empty {
+  flex: 1;
+  min-height: 8rem;
+  padding: var(--pad-v-md) 0;
+  --mdc-emptystate-illustration-size: 6rem;
+  --mdc-emptystate-max-width: 18rem;
 }
 
 .wallboard {
@@ -513,6 +556,8 @@ body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 table {
@@ -540,11 +585,6 @@ td {
   font-size: 1.15rem;
 }
 
-td.empty {
-  color: var(--muted);
-  text-align: center;
-  padding: var(--pad-v-xl);
-}
 
 .success {
   color: var(--success);
@@ -866,12 +906,6 @@ mdc-select.threshold-queue-select {
 
 .presence-dot.warning {
   background: var(--indicator-caution);
-}
-
-.empty-agents {
-  margin: var(--space-md) 0 0;
-  color: var(--muted);
-  text-align: center;
 }
 
 .agent-roster {

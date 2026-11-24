@@ -1,6 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { IconProvider } from "@momentum-design/components/react";
+import {
+  IconProvider,
+  IllustrationProvider,
+} from "@momentum-design/components/react";
 import "@momentum-design/fonts/dist/css/fonts.css";
 import "@momentum-design/tokens/dist/css/typography/complete.css";
 import "@momentum-design/tokens/dist/css/components/complete.css";
@@ -27,7 +30,13 @@ import "./styles.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <IconProvider iconSet="momentum-icons">
-      <App />
+      <IllustrationProvider
+        illustrationSet="custom-illustrations"
+        url="/illustrations"
+        fileExtension="svg"
+      >
+        <App />
+      </IllustrationProvider>
     </IconProvider>
   </StrictMode>,
 );

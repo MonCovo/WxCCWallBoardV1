@@ -1,6 +1,7 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import {
   AlertChip,
+  Spinner,
   ThemeProvider,
 } from "@momentum-design/components/react";
 import {
@@ -34,6 +35,7 @@ import type {
   QueueThresholdConfig,
   WallboardSnapshot,
 } from "./types";
+import { WallboardEmpty } from "./WallboardEmpty";
 
 function slaClass(pct: number): AlertTone {
   if (pct >= 85) return "success";
@@ -227,6 +229,26 @@ function QueueTable({
 }) {
   const options = queues.map((q) => ({ value: q.id, label: q.name }));
   const visible = applySelection(queues, selected, (q) => q.id);
+  const empty =
+    visible.length === 0 ? (
+      queues.length === 0 ? (
+        <WallboardEmpty
+          className="queue-empty"
+          size="medium"
+          illustration="call-oneninetwo-empty-primary"
+          heading="No queue activity"
+          description="Queues will appear when contacts start arriving."
+        />
+      ) : (
+        <WallboardEmpty
+          className="queue-empty"
+          size="medium"
+          illustration="bullseye-filter-oneninetwo-empty-primary"
+          heading="No queues selected"
+          description="Adjust the Queues filter to show activity."
+        />
+      )
+    ) : null;
   return (
     <section className="panel queue-panel" aria-label="Queues">
       <div className="panel-head">
@@ -246,26 +268,20 @@ function QueueTable({
           />
         </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Queue</th>
-            <th>Channel</th>
-            <th>Offered</th>
-            <th>In queue</th>
-            <th>Longest wait</th>
-            <th>SL%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.length === 0 ? (
+      {empty ?? (
+        <table>
+          <thead>
             <tr>
-              <td colSpan={6} className="empty">
-                {queues.length === 0 ? "No queue activity" : "No queues selected"}
-              </td>
+              <th>Queue</th>
+              <th>Channel</th>
+              <th>Offered</th>
+              <th>In queue</th>
+              <th>Longest wait</th>
+              <th>SL%</th>
             </tr>
-          ) : (
-            visible.map((q) => {
+          </thead>
+          <tbody>
+            {visible.map((q) => {
               const tones = tonesForQueue(q, thresholds);
               const rowTone = worstTone(
                 tones.offered,
@@ -290,10 +306,10 @@ function QueueTable({
                   </MetricCell>
                 </tr>
               );
-            })
-          )}
-        </tbody>
-      </table>
+            })}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }
@@ -329,16 +345,32 @@ function availabilityLabel(status: AgentAvailability): string {
 
 function AgentRoster({
   agents,
-  emptyLabel,
+  emptyMode,
 }: {
   agents: AgentRow[];
-  emptyLabel: string;
+  emptyMode: "none" | "filtered";
 }) {
   const now = useNow();
   const rosterRef = useRef<HTMLUListElement>(null);
   const layout = useRosterLayout(rosterRef, agents.length);
   if (agents.length === 0) {
-    return <p className="empty-agents">{emptyLabel}</p>;
+    return emptyMode === "none" ? (
+      <WallboardEmpty
+        className="agent-empty"
+        size="large"
+        illustration="computer-headset-onetwozero-empty-primary"
+        heading="No agents signed in"
+        description="The roster will fill when agents become available."
+      />
+    ) : (
+      <WallboardEmpty
+        className="agent-empty"
+        size="large"
+        illustration="bullseye-filter-oneninetwo-empty-primary"
+        heading="No agents selected"
+        description="Adjust the Teams filter to show agents."
+      />
+    );
   }
   return (
     <ul
@@ -443,7 +475,7 @@ function AgentStates({
       </div>
       <AgentRoster
         agents={visible}
-        emptyLabel={agents.length === 0 ? "No agents signed in" : "No agents selected"}
+        emptyMode={agents.length === 0 ? "none" : "filtered"}
       />
     </section>
   );
@@ -454,22 +486,32 @@ function ChannelMix({ snapshot }: { snapshot: WallboardSnapshot }) {
   return (
     <section className="panel" aria-label="Channel mix">
       <h2>Channels</h2>
-      <ul className="channel-list">
-        {snapshot.channels.map((c) => (
-          <li key={c.channel}>
-            <div className="channel-row">
-              <span>{channelLabel(c.channel)}</span>
-              <span>{c.count}</span>
-            </div>
-            <div className="bar-track">
-              <div
-                className={`bar-fill channel-${c.channel}`}
-                style={{ width: `${(c.count / total) * 100}%` }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
+      {snapshot.channels.length === 0 ? (
+        <WallboardEmpty
+          className="channel-empty"
+          size="medium"
+          illustration="people-chat-threetwozero-empty-primary"
+          heading="No channel volume"
+          description="Channel mix appears once contacts are offered."
+        />
+      ) : (
+        <ul className="channel-list">
+          {snapshot.channels.map((c) => (
+            <li key={c.channel}>
+              <div className="channel-row">
+                <span>{channelLabel(c.channel)}</span>
+                <span>{c.count}</span>
+              </div>
+              <div className="bar-track">
+                <div
+                  className={`bar-fill channel-${c.channel}`}
+                  style={{ width: `${(c.count / total) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -486,7 +528,20 @@ export function App() {
 
   const body = !snapshot ? (
     <div className="boot">
-      <p>{error ? `Cannot reach API: ${error}` : "Loading wallboard…"}</p>
+      {error ? (
+        <WallboardEmpty
+          className="boot-empty"
+          size="large"
+          illustration="cloud-failure-oneninetwo-error"
+          heading="Cannot reach API"
+          description={error}
+        />
+      ) : (
+        <div className="boot-loading">
+          <Spinner size="large" aria-label="Loading wallboard" />
+          <p>Loading wallboard…</p>
+        </div>
+      )}
     </div>
   ) : (
     <div className="wallboard">
