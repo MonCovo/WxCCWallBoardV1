@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { RefObject } from "react";
-import type { WallboardSnapshot } from "./types";
+import {
+  DEFAULT_QUEUE_THRESHOLDS,
+  normalizeQueueThresholdConfig,
+} from "./thresholds";
+import type { QueueThresholdConfig, WallboardSnapshot } from "./types";
 
 /** null means show all items; an array is an explicit multi-select (may be empty). */
 export type FilterSelection = string[] | null;
@@ -36,6 +40,37 @@ export function useFilterSelection(storageKey: string) {
   );
 
   return [selected, update] as const;
+}
+
+function readQueueThresholds(key: string): QueueThresholdConfig {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return structuredClone(DEFAULT_QUEUE_THRESHOLDS);
+    return normalizeQueueThresholdConfig(JSON.parse(raw) as unknown);
+  } catch {
+    return structuredClone(DEFAULT_QUEUE_THRESHOLDS);
+  }
+}
+
+export function useQueueThresholds(storageKey = "wallboard.queueThresholds") {
+  const [config, setConfig] = useState<QueueThresholdConfig>(() =>
+    readQueueThresholds(storageKey),
+  );
+
+  const update = useCallback(
+    (next: QueueThresholdConfig) => {
+      const normalized = normalizeQueueThresholdConfig(next);
+      setConfig(normalized);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(normalized));
+      } catch {
+        /* private mode / quota — keep in-memory config */
+      }
+    },
+    [storageKey],
+  );
+
+  return [config, update] as const;
 }
 
 function displayKeyParam(): string {

@@ -4,17 +4,25 @@ import {
   useClock,
   useFilterSelection,
   useNow,
+  useQueueThresholds,
   useRosterLayout,
   useSnapshot,
   type FilterSelection,
 } from "./hooks";
 import { applySelection, MultiSelectFilter } from "./MultiSelectFilter";
+import { ThresholdSettings } from "./ThresholdSettings";
+import {
+  toneClass,
+  tonesForQueue,
+  worstTone,
+} from "./thresholds";
 import type {
   AgentAvailability,
   AgentRow,
   AgentStateCounts,
   ChannelType,
   QueueRow,
+  QueueThresholdConfig,
   WallboardSnapshot,
 } from "./types";
 
@@ -151,10 +159,14 @@ function QueueTable({
   queues,
   selected,
   onChange,
+  thresholds,
+  onThresholdsChange,
 }: {
   queues: QueueRow[];
   selected: ReturnType<typeof useFilterSelection>[0];
   onChange: ReturnType<typeof useFilterSelection>[1];
+  thresholds: QueueThresholdConfig;
+  onThresholdsChange: (next: QueueThresholdConfig) => void;
 }) {
   const options = queues.map((q) => ({ value: q.id, label: q.name }));
   const visible = applySelection(queues, selected, (q) => q.id);
@@ -162,13 +174,20 @@ function QueueTable({
     <section className="panel queue-panel" aria-label="Queues">
       <div className="panel-head">
         <h2>Queues</h2>
-        <MultiSelectFilter
-          label="Queues"
-          noun="queues"
-          options={options}
-          selected={selected}
-          onChange={onChange}
-        />
+        <div className="panel-head-actions">
+          <ThresholdSettings
+            queues={queues.map((q) => ({ id: q.id, name: q.name }))}
+            config={thresholds}
+            onChange={onThresholdsChange}
+          />
+          <MultiSelectFilter
+            label="Queues"
+            noun="queues"
+            options={options}
+            selected={selected}
+            onChange={onChange}
+          />
+        </div>
       </div>
       <table>
         <thead>
@@ -189,20 +208,44 @@ function QueueTable({
               </td>
             </tr>
           ) : (
-            visible.map((q) => (
-              <tr key={q.id}>
-                <td>{q.name}</td>
-                <td>{channelLabel(q.channel)}</td>
-                <td>{q.offered}</td>
-                <td className={q.inQueue > 5 ? "warn" : ""}>{q.inQueue}</td>
-                <td className={q.longestWaitSeconds > 120 ? "bad" : ""}>
-                  {formatDuration(q.longestWaitSeconds)}
-                </td>
-                <td className={slaClass(q.serviceLevelPct)}>
-                  {q.serviceLevelPct > 0 ? `${q.serviceLevelPct}%` : "—"}
-                </td>
-              </tr>
-            ))
+            visible.map((q) => {
+              const tones = tonesForQueue(q, thresholds);
+              const rowTone = worstTone(
+                tones.offered,
+                tones.inQueue,
+                tones.longestWaitSeconds,
+                tones.serviceLevelPct,
+              );
+              const rowAlert =
+                rowTone === "warn" || rowTone === "bad" ? rowTone : "";
+              const rowClass = ["queue-row", rowAlert].filter(Boolean).join(" ");
+              return (
+                <tr key={q.id} className={rowClass}>
+                  <td>{q.name}</td>
+                  <td>{channelLabel(q.channel)}</td>
+                  <td
+                    className={`metric-cell ${toneClass(tones.offered)}`.trim()}
+                  >
+                    {q.offered}
+                  </td>
+                  <td
+                    className={`metric-cell ${toneClass(tones.inQueue)}`.trim()}
+                  >
+                    {q.inQueue}
+                  </td>
+                  <td
+                    className={`metric-cell ${toneClass(tones.longestWaitSeconds)}`.trim()}
+                  >
+                    {formatDuration(q.longestWaitSeconds)}
+                  </td>
+                  <td
+                    className={`metric-cell ${toneClass(tones.serviceLevelPct)}`.trim()}
+                  >
+                    {q.serviceLevelPct > 0 ? `${q.serviceLevelPct}%` : "—"}
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -385,6 +428,9 @@ export function App() {
   const clock = useClock(snapshot?.period?.timezone);
   const [selectedTeams, setSelectedTeams] = useFilterSelection("wallboard.teams");
   const [selectedQueues, setSelectedQueues] = useFilterSelection("wallboard.queues");
+  const [queueThresholds, setQueueThresholds] = useQueueThresholds(
+    "wallboard.queueThresholds",
+  );
 
   if (!snapshot) {
     return (
@@ -409,6 +455,8 @@ export function App() {
             queues={snapshot.queues}
             selected={selectedQueues}
             onChange={setSelectedQueues}
+            thresholds={queueThresholds}
+            onThresholdsChange={setQueueThresholds}
           />
           <ChannelMix snapshot={snapshot} />
         </div>

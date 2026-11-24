@@ -21,6 +21,26 @@ export interface QueueRow {
   serviceLevelPct: number;
 }
 
+export type AlertTone = "ok" | "warn" | "bad" | "none";
+
+export type QueueMetric =
+  | "offered"
+  | "inQueue"
+  | "longestWaitSeconds"
+  | "serviceLevelPct";
+
+export interface MetricThreshold {
+  /** Higher value is worse for offered/inQueue/wait; lower is worse for SL%. */
+  warn: number | null;
+  bad: number | null;
+}
+
+export interface QueueThresholdConfig {
+  defaults: Record<QueueMetric, MetricThreshold>;
+  /** Sparse overrides keyed by queue id */
+  byQueue: Record<string, Partial<Record<QueueMetric, MetricThreshold>>>;
+}
+
 export type AgentAvailability =
   | "available"
   | "engaged"

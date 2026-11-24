@@ -222,6 +222,13 @@ body {
   margin: 0;
 }
 
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .filter {
   position: relative;
   flex-shrink: 0;
@@ -422,6 +429,242 @@ td.empty {
 }
 .bad {
   color: var(--bad);
+}
+
+.metric-cell {
+  border-radius: 6px;
+}
+
+.metric-cell.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.metric-cell.warn {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+}
+
+.metric-cell.bad {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+}
+
+.queue-row.warn {
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+
+.queue-row.bad {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+.queue-row.warn td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.queue-row.bad td:first-child {
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+
+.threshold-settings {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.threshold-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(6, 10, 18, 0.62);
+}
+
+.threshold-dialog {
+  width: min(36rem, 100%);
+  max-height: min(88vh, 44rem);
+  overflow: auto;
+  background: #0f1829;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+.threshold-dialog-head,
+.threshold-section-head,
+.threshold-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.threshold-dialog-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.threshold-help,
+.threshold-empty {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.threshold-section {
+  margin-top: 1.1rem;
+}
+
+.threshold-section h4 {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.threshold-section-head {
+  margin-bottom: 0.55rem;
+}
+
+.threshold-section-head h4 {
+  margin: 0;
+}
+
+.threshold-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.threshold-table th,
+.threshold-table td {
+  padding: 0.45rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  font-size: 0.92rem;
+}
+
+.threshold-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.threshold-metric-label {
+  font-weight: 600;
+}
+
+.threshold-override-tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.threshold-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.threshold-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.threshold-field input {
+  width: 5.2rem;
+  background: var(--bg-kpi);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.threshold-field input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.threshold-unit {
+  color: var(--muted);
+  font-size: 0.78rem;
+  align-self: flex-end;
+  padding-bottom: 0.4rem;
+}
+
+.threshold-queue-select {
+  max-width: 14rem;
+  background: var(--bg-kpi);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.threshold-clear,
+.threshold-clear-all,
+.threshold-close,
+.threshold-done {
+  background: transparent;
+  color: var(--accent);
+  border: 0;
+  padding: 0.2rem 0.15rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.threshold-clear-all {
+  margin-top: 0.65rem;
+}
+
+.threshold-dialog-foot {
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
+.threshold-done {
+  background: var(--bg-kpi);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  color: var(--text);
+}
+
+.threshold-done:hover,
+.threshold-close:hover,
+.threshold-clear:hover,
+.threshold-clear-all:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .agent-panel {
