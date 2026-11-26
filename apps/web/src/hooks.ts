@@ -193,8 +193,13 @@ export interface RosterLayout {
 }
 
 const ROSTER_GAP = 8;
-/** Allow slightly narrower cards so height-starved rosters can gain a column. */
-const ROSTER_MIN_WIDTH = 200;
+/**
+ * Floor for column count. Names own their own row; keep cards wide enough
+ * for a typical first + last name before ellipsis.
+ */
+const ROSTER_MIN_WIDTH = 280;
+/** Target width where a full agent name stays readable. */
+const NAME_COMFORT_WIDTH = 340;
 /** Min card height to show labeled channel pills without clipping. */
 const FULL_MIN_HEIGHT = 104;
 /** Min card height for status dots (no channel labels). */
@@ -204,8 +209,10 @@ const COMPACT_REF_HEIGHT = 64;
 const DENSE_REF_HEIGHT = 40;
 
 function densityFor(cardW: number, cardH: number): RosterDensity {
+  // Narrow cards: hide "Unavailable" text — name already has its own row.
+  if (cardW < 200) return "dense";
   if (cardH >= FULL_MIN_HEIGHT && cardW >= 260) return "full";
-  if (cardH >= COMPACT_MIN_HEIGHT && cardW >= 160) return "compact";
+  if (cardH >= COMPACT_MIN_HEIGHT && cardW >= 180) return "compact";
   return "dense";
 }
 
@@ -242,13 +249,14 @@ export function computeRosterLayout(
     if (cardW < 1 || cardH < 1) continue;
     const unused = cols * rows - count;
     const density = densityFor(cardW, cardH);
-    // Prefer layouts that keep labeled channels readable; then maximize card area.
+    // Prefer readable names (width²) over packing more short columns.
     const densityBonus =
       density === "full" ? 1.35 : density === "compact" ? 1.1 : 0.85;
     const heightScore = Math.min(cardH / FULL_MIN_HEIGHT, 1.2);
-    const widthScore = Math.min(cardW / 300, 1.1);
+    const widthScore = Math.min(cardW / NAME_COMFORT_WIDTH, 1.15);
     const score =
-      heightScore * widthScore * cardW * cardH * densityBonus - unused * 400;
+      heightScore * widthScore * widthScore * cardW * cardH * densityBonus -
+      unused * 400;
     if (score > best.score) best = { cols, cardW, cardH, score };
   }
 

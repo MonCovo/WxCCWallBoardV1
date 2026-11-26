@@ -566,6 +566,46 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+.queue-table {
+  table-layout: fixed;
+}
+
+.queue-table th:nth-child(1),
+.queue-table td:nth-child(1) {
+  width: 38%;
+}
+
+.queue-table th:nth-child(2),
+.queue-table td:nth-child(2) {
+  width: 11%;
+}
+
+.queue-table th:nth-child(n + 3),
+.queue-table td:nth-child(n + 3) {
+  width: 12.75%;
+}
+
+.queue-table .queue-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-table.density-compact td {
+  font-size: 1rem;
+  padding-block: var(--pad-v-xs);
+}
+
+.queue-table.density-dense td {
+  font-size: 0.88rem;
+  padding-block: var(--pad-v-2xs);
+}
+
+.queue-table.density-dense .metric-cue {
+  font-size: 0.6rem;
+  padding: 0 calc(var(--pad-h-2xs) * 0.75);
+}
+
 th,
 td {
   text-align: left;
@@ -598,6 +638,7 @@ td {
 
 .metric-cell {
   border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 .metric-cell .metric-value,
@@ -886,6 +927,7 @@ mdc-select.threshold-queue-select {
   align-items: center;
   gap: var(--space-xs);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .presence-dot {
@@ -940,33 +982,31 @@ mdc-select.threshold-queue-select {
 
 .agent-card-head {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-xs);
+  column-gap: var(--space-xs);
+  row-gap: calc(var(--space-2xs) * var(--agent-scale));
   flex-shrink: 0;
   min-width: 0;
 }
 
-.agent-identity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-none);
-  min-width: 0;
-}
-
-.agent-name-line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-xs);
-  min-width: 0;
-}
-
+/* Name always owns the first row so status/timer cannot crush it. */
 .agent-name {
+  flex: 1 1 100%;
+  min-width: 0;
   font-size: calc(0.78rem + 0.37rem * var(--agent-scale));
   font-weight: var(--font-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agent-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .agent-timer {
@@ -978,6 +1018,7 @@ mdc-select.threshold-queue-select {
 }
 
 .agent-team {
+  flex: 1 1 100%;
   color: var(--muted);
   font-size: calc(0.62rem + 0.18rem * var(--agent-scale));
   letter-spacing: 0.03em;
@@ -1043,9 +1084,19 @@ mdc-select.threshold-queue-select {
   max-width: none;
 }
 
-.agent-roster.density-dense .agent-card-head {
-  align-items: center;
+/* Dot-only status when cards are too narrow for "Unavailable". */
+.agent-roster.density-dense .agent-primary {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
+
 
 .channel-status {
   color: var(--text);

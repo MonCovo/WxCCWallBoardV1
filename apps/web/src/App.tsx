@@ -229,6 +229,8 @@ function QueueTable({
 }) {
   const options = queues.map((q) => ({ value: q.id, label: q.name }));
   const visible = applySelection(queues, selected, (q) => q.id);
+  const tableDensity =
+    visible.length > 14 ? "dense" : visible.length > 8 ? "compact" : "full";
   const empty =
     visible.length === 0 ? (
       queues.length === 0 ? (
@@ -269,7 +271,7 @@ function QueueTable({
         </div>
       </div>
       {empty ?? (
-        <table>
+        <table className={`queue-table density-${tableDensity}`}>
           <thead>
             <tr>
               <th>Queue</th>
@@ -294,7 +296,9 @@ function QueueTable({
               const rowClass = ["queue-row", rowAlert].filter(Boolean).join(" ");
               return (
                 <tr key={q.id} className={rowClass}>
-                  <td>{q.name}</td>
+                  <td className="queue-name" title={q.name}>
+                    {q.name}
+                  </td>
                   <td>{channelLabel(q.channel)}</td>
                   <MetricCell tone={tones.offered}>{q.offered}</MetricCell>
                   <MetricCell tone={tones.inQueue}>{q.inQueue}</MetricCell>
@@ -391,24 +395,27 @@ function AgentRoster({
         return (
         <li key={agent.id} className="agent-card">
           <div className="agent-card-head">
-            <div className="agent-identity">
-              <span className="agent-name-line">
-                <span className="agent-name">{agent.name}</span>
-                {elapsed != null ? (
-                  <span className="agent-timer">{formatDuration(elapsed)}</span>
-                ) : null}
-              </span>
-              <span className="agent-team">{agent.team}</span>
-            </div>
-            <span className="agent-status">
-              <span
-                className={`presence-dot ${availabilityTone(agent.status)}`}
-                aria-hidden="true"
-              />
-              <span className={`agent-primary ${availabilityTone(agent.status)}`}>
-                {availabilityLabel(agent.status)}
-              </span>
+            <span className="agent-name" title={agent.name}>
+              {agent.name}
             </span>
+            <div className="agent-meta">
+              {elapsed != null ? (
+                <span className="agent-timer">{formatDuration(elapsed)}</span>
+              ) : null}
+              <span
+                className="agent-status"
+                title={availabilityLabel(agent.status)}
+              >
+                <span
+                  className={`presence-dot ${availabilityTone(agent.status)}`}
+                  aria-hidden="true"
+                />
+                <span className={`agent-primary ${availabilityTone(agent.status)}`}>
+                  {availabilityLabel(agent.status)}
+                </span>
+              </span>
+            </div>
+            <span className="agent-team">{agent.team}</span>
           </div>
           <div className="agent-channels">
             {agent.channels.length === 0 ? (
